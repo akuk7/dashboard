@@ -15,8 +15,11 @@ function App() {
       <div>
         {/* <BreakTracker/>
         <BreakDashboard/> */}
+
         <HabitTracker/>
+       
         <HabitDashboard/>
+         <img src='/pulp.jpg'/>
       </div>
   )
 }

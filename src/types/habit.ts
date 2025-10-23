@@ -1,6 +1,6 @@
 export type Habit = {
   id: string
   name: string
-  createdAt: string // ISO
+  created_at: string // ISO
   color?: string
 }

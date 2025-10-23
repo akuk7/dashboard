@@ -1,25 +1,39 @@
 import React, { useState } from 'react'
 import { X, PlusCircle } from 'lucide-react'
 import type { Habit } from '../types/habit'
+import supabase from '../lib/supabase'
 
 type Props = {
   onClose: () => void
-  onAdd: (habit: Habit) => void
+  // onAdd no longer takes the habit, but signals the parent to refresh after insertion
+  onAdd: () => void 
 }
 
 const AddHabit: React.FC<Props> = ({ onClose, onAdd }) => {
   const [name, setName] = useState('')
   const [color, setColor] = useState('#60a5fa')
 
-  const handleAdd = () => {
+  const handleAdd = async () => {
     if (!name.trim()) return
-    const habit: Habit = {
-      id: Date.now().toString(),
+    
+    
+    const newHabit: Habit= {
+      id: crypto.randomUUID(), // Use crypto.randomUUID() for a modern unique ID
       name: name.trim(),
-      createdAt: new Date().toISOString(),
       color,
+      created_at: new Date().toISOString(), 
     }
-    onAdd(habit)
+    
+    // We only insert the required fields.
+    const { error } = await supabase.from('habits').insert([newHabit])
+    
+    if (error) {
+      console.error('Error adding habit:', error)
+      return
+    }
+    
+    // Signal the parent component (Dashboard) to reload its list of habits
+    onAdd() 
     onClose()
   }
 

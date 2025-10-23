@@ -7,4 +7,5 @@ export default defineConfig({
   plugins: [react(),
     tailwindcss(),
   ],
+  base: '/personal-dashboard/', // Replace 'dashboard' with your repository name
 })
