@@ -22,7 +22,6 @@ const genRange = (days: number) => {
   return res;
 };
 
-// Simplified type definition for the periods map
 type PeriodKeys = 'week' | 'month' | 'year';
 const periodDays: Record<PeriodKeys, number> = {
   week: 7,
@@ -35,12 +34,8 @@ const chartOptions = {
   responsive: true,
   maintainAspectRatio: false,
   plugins: {
-    legend: {
-      display: false,
-    },
-    title: {
-      display: false,
-    },
+    legend: { display: false },
+    title: { display: false },
     tooltip: {
       callbacks: {
         label: function (context: TooltipItem<'pie'>): string {
@@ -52,7 +47,7 @@ const chartOptions = {
             (a: number, b: number) => a + b,
             0
           );
-          const value = context.parsed as number; // Safely cast parsed value to number
+          const value = context.parsed as number;
           const percentage = ((value / total) * 100).toFixed(1) + "%";
           return label + value + " (" + percentage + ")";
         },
@@ -61,7 +56,6 @@ const chartOptions = {
   },
 };
 
-// Supabase Record Structure Type (assuming columns: habit_id, date, done)
 type HabitRecordRow = {
     habit_id: string;
     date: string;
@@ -70,18 +64,15 @@ type HabitRecordRow = {
 
 const HabitDashboard: React.FC = () => {
   const [showAdd, setShowAdd] = useState(false)
-  const [period, setPeriod] = useState<PeriodKeys>('month') // Defaulted to 'month'
+  const [period, setPeriod] = useState<PeriodKeys>('month') 
   const [habits, setHabits] = useState<Habit[]>([])
-  // Records state remains the same for easy lookup
   const [records, setRecords] = useState<Record<string, Record<string, boolean>>>({})
 
-  // 1. Fetch Habits on Mount
   const loadHabits = async () => {
     const { data: hData } = await supabase
       .from('habits')
       .select('*')
       .order('created_at', { ascending: false })
-    // Ensure data conforms to Habit[] type
     setHabits((hData as Habit[]) || []) 
   }
 
@@ -89,29 +80,32 @@ const HabitDashboard: React.FC = () => {
     loadHabits()
   }, [])
 
-  // 2. Fetch Records when Period Changes
   useEffect(() => {
     const loadRecords = async () => {
-      const days = periodDays[period]
-      const dates = genRange(days)
-      
-      const { data } = await supabase
-        .from('habit_records')
-        .select('habit_id,date,done')
-        .in('date', dates)
-      
-      const map: Record<string, Record<string, boolean>> = {};
+     const days = periodDays[period];
+  const dates = genRange(days);
+  const { data, error } = await supabase
+    .from('habit_records')
+    .select('habit_id,date,done')
+    .in('date', dates);
+
+  if (error) {
+    console.error('Error loading records:', error);
+    return;
+  }
+
+  const map: Record<string, Record<string, boolean>> = {};
   ((data ?? []) as HabitRecordRow[]).forEach((record: HabitRecordRow) => {
     map[record.date] = map[record.date] || {};
     map[record.date][record.habit_id] = !!record.done;
   });
   
   setRecords(map);
+
     }
     loadRecords()
   }, [period])
 
-  // 3. Compute Stats
   const statPerHabit = useMemo(() => {
     const days = periodDays[period]
     const dates = genRange(days)
@@ -122,21 +116,22 @@ const HabitDashboard: React.FC = () => {
     })
   }, [habits, records, period])
 
-  // 4. Handle Habit Add (simply reloads habits from DB)
   const onAddHabit = () => {
     loadHabits()
     setShowAdd(false)
   }
 
   return (
-    <div className="rounded-lg text-white p-5 flex gap-5">
-      {/* <div className="flex justify-between items-center mb-4"> */}
-   
-        <div className="flex flex-col items-center gap-2">
+    // Main background is deep black
+    <div className="p-6 bg-[#0A0A0A] rounded-xl text-gray-100 min-h-[400px]">
+      <div className="flex justify-between items-center mb-6 border-b border-[#303030] pb-4">
+        <h3 className="text-3xl font-extrabold text-white tracking-tight">Habit Dashboard</h3>
+        <div className="flex items-center gap-3">
           <select
             value={period}
             onChange={(e) => setPeriod(e.target.value as PeriodKeys)}
-            className="bg-gray-700 rounded px-3 py-2 text-white border border-transparent focus:border-blue-500 transition"
+            // Selector: Darker background, white border on focus
+            className="bg-[#121212] border border-[#303030] rounded-lg px-4 py-2 text-gray-300 focus:border-white transition text-sm"
           >
             <option value="week">Last 7 days</option>
             <option value="month">Last 30 days</option>
@@ -145,19 +140,20 @@ const HabitDashboard: React.FC = () => {
 
           <button
             onClick={() => setShowAdd(true)}
-            className="ml-2 inline-flex items-center gap-2 px-3 py-2 bg-blue-500 rounded hover:bg-blue-600 transition"
+            // Add Habit button: White/Gray only
+            className="inline-flex items-center gap-2 px-4 py-2 bg-white text-black rounded-lg font-medium hover:bg-gray-200 transition border border-white shadow-lg shadow-white/10"
           >
-            <PlusCircle size={20} /> Add Habit
+            <PlusCircle size={18} /> Add Habit
           </button>
         </div>
-      {/* </div> */}
+      </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {statPerHabit.map((s) => {
           const completed = s.done;
-          const remaining = Math.max(0, s.total - completed); // Use s.total
+          const remaining = Math.max(0, s.total - completed);
           const doneColor = s.color || "#60a5fa";
-          const remainingColor = "#373631";
+          const remainingColor = "#1D2330"; // Dark color for remaining slice
 
           const data = {
             labels: ["Done", "Remaining"],
@@ -165,32 +161,36 @@ const HabitDashboard: React.FC = () => {
               {
                 data: [completed, remaining],
                 backgroundColor: [doneColor, remainingColor],
-                borderColor: [doneColor, remainingColor],
+                borderColor: doneColor, 
                 borderWidth: 1,
-                hoverOffset: 4,
+                hoverOffset: 8,
               },
             ],
           };
           return (
-            <div key={s.id} className="bg-gray-900 rounded p-3">
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
+            // Individual Habit Card: Slightly lighter background with border
+            <div key={s.id} className="bg-[#121212] rounded-xl p-5 border border-[#303030] shadow-md shadow-black/30">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
                   <span
-                    className="inline-block w-3 h-3 rounded"
+                    // Dot uses habit's color for distinction
+                    className="inline-block w-4 h-4 rounded-full border border-gray-700/50" 
                     style={{ background: s.color }}
                   />
                   <span
-                    className="font-medium text-base"
-                    style={{ color: s.color }}
+                    className="font-bold text-lg text-white" 
                   >
                     {s.name}
                   </span>
                 </div>
-                <div className="text-sm text-gray-300">
-                  {completed}/{s.total}
+                {/* Score display */}
+                <div className="text-xl font-bold text-white">
+                  {completed}
+                  <span className="text-gray-400 font-normal text-sm"> / {s.total}</span>
                 </div>
               </div>
-              <div className="w-full mx-auto" style={{ height: "140px" }}>
+              
+              <div className="w-full mx-auto mt-4" style={{ height: "160px" }}>
                 <Pie data={data} options={chartOptions} />
               </div>
             </div>

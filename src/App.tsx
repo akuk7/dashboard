@@ -19,7 +19,7 @@ function App() {
         <HabitTracker/>
        
         <HabitDashboard/>
-         <img src='/pulp.jpg'/>
+         {/* <img src='/pulp.jpg'/> */}
       </div>
   )
 }
