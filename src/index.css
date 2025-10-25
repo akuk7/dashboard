@@ -55,7 +55,9 @@ html {
   font-size: 16px !important;
     scroll-behavior: smooth; /* Optional: Makes the jump smoother */
 }
-
+body{
+  -webkit-text-size-adjust: 100%;
+}
 :target {
     /* Set the space above the target element. 
        40px (navbar height) + 20px (desired gap) = 60px. */
