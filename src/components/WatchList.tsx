@@ -165,7 +165,7 @@ const Watchlist: React.FC = () => {
     };
 
     return (
-        <div className="p-6 bg-[#0A0A0A] rounded-xl text-gray-100 min-h-screen">
+        <div className="p-6 border border-[#303030] shadow-md rounded-xl text-gray-100 flex flex-col h-[600px]">
             {showCategoryModal && <CategoryModal onClose={() => setShowCategoryModal(false)} onCreate={handleCreateCategoryFromModal} />}
 
              <h3 className="text-xl font-bold mb-4 flex items-center gap-2 text-white border-b border-[#303030] pb-3">
@@ -275,12 +275,12 @@ const Watchlist: React.FC = () => {
             {/* --- WATCHLIST ITEMS --- */}
             {isLoading && <p className="text-gray-400">Loading watchlist...</p>}
             
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 flex-grow overflow-y-auto items-start pr-4">
                 {filteredWatchlist.map(item => (
-                    <div 
-                        key={item.db_id} 
-                        className="flex items-start p-4 bg-[#121212] rounded-xl border border-[#303030] shadow-md transition-all hover:border-white/50"
-                    >
+                   <div 
+            key={item.db_id} 
+            className="flex items-start p-4 bg-[#121212] rounded-xl h-[120px] border border-[#303030] shadow-md transition-all hover:border-white/50"
+        >
                         {item.poster_path && (
                             <img 
                                 src={item.poster_path} 
@@ -307,6 +307,7 @@ const Watchlist: React.FC = () => {
                         </button>
                     </div>
                 ))}
+                <div className="md:col-span-3 text-transparent h-0">.</div>
             </div>
             
             {filteredWatchlist.length === 0 && !isLoading && (

@@ -120,7 +120,7 @@ const DigitalJournal: React.FC = () => {
     // --- UI RENDERING ---
 
     return (
-        <div className="p-6 bg-[#0A0A0A] rounded-xl text-gray-100 min-h-screen">
+        <div className="p-6 border border-[#303030] shadow-md rounded-xl text-gray-100 flex flex-col  h-[600px] " id="journal">
             {/* 1. EDITOR MODAL */}
             {(editorEntry === 'NEW' || (editorEntry && typeof editorEntry === 'object')) && (
                 <EditorModal 
@@ -161,8 +161,8 @@ const DigitalJournal: React.FC = () => {
             </div>
 
             {/* Filters and Sort */}
-            <div className="flex justify-between items-center gap-3 mb-6 p-3 bg-[#121212] rounded-xl border border-[#303030]">
-                <div className="relative flex-grow max-w-sm">
+          <div className="flex justify-between items-center gap-3 mb-6 p-3 bg-[#121212] rounded-xl border border-[#303030] flex-shrink-0">
+                <div className="relative grow max-w-sm">
                     <input
                         type="text"
                         placeholder="Search title or content..."
@@ -187,7 +187,7 @@ const DigitalJournal: React.FC = () => {
             {/* --- JOURNAL LIST --- */}
             {isLoading && <p className="text-gray-400">Loading entries...</p>}
             
-            <div className="space-y-3">
+            <div className="space-y-3 overflow-y-auto grow pr-4">
                 {filteredAndSortedEntries.map(entry => (
                     <div 
                         key={entry.id} 

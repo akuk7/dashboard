@@ -123,7 +123,7 @@ const HabitDashboard: React.FC = () => {
 
   return (
     // Main background is deep black
-    <div className="my-6 bg-[#0A0A0A] rounded-xl text-gray-100  w-[85vw] ">
+    <div className="my-6 bg-[#0A0A0A] rounded-xl text-gray-100  w-[85vw] " id="habits">
       <div className="flex justify-between items-center mb-6 border-b border-[#303030] pb-4">
         <h3 className="text-2xl font-bold text-white tracking-tight">Habit Dashboard</h3>
         <div className="flex items-center gap-3">
