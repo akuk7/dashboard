@@ -96,7 +96,7 @@ const HabitTracker: React.FC = () => {
   }
 
   return (
-    <div className="p-4 md:p-8">
+    <div className=" w-[85vw]">
       <div className="bg-[#121212] rounded-xl border border-[#303030] overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full border-collapse min-w-[600px] md:min-w-[700px]">
@@ -125,7 +125,7 @@ const HabitTracker: React.FC = () => {
                     const checked = !!(records[d] && records[d][h.id]);
                     const bgColor = h.color || "#60a5fa";
                     return (
-                      <td key={d} className="p-0.5 md:p-1 text-center">
+                      <td key={d} className="p-0.5 md:p-1.5 text-center">
                         <button
                           onClick={() => toggle(d, h.id)}
                           style={{
@@ -139,11 +139,11 @@ const HabitTracker: React.FC = () => {
                                      hover:opacity-90 transition-opacity"
                         >
                           <Check
-                            className="w-4 h-4 md:w-8 md:h-8"
+                            className="w-2 h-2 md:w-6 md:h-6"
                             style={{
                               color: checked ? bgColor : "transparent",
                               stroke: checked ? bgColor : "transparent",
-                              strokeWidth: checked ? 3 : 0,
+                              strokeWidth: checked ? 1: 0,
                             }}
                           />
                         </button>

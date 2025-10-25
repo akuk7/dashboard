@@ -123,9 +123,9 @@ const HabitDashboard: React.FC = () => {
 
   return (
     // Main background is deep black
-    <div className="p-6 bg-[#0A0A0A] rounded-xl text-gray-100 min-h-[400px]">
+    <div className="my-6 bg-[#0A0A0A] rounded-xl text-gray-100  w-[85vw] ">
       <div className="flex justify-between items-center mb-6 border-b border-[#303030] pb-4">
-        <h3 className="text-3xl font-extrabold text-white tracking-tight">Habit Dashboard</h3>
+        <h3 className="text-2xl font-bold text-white tracking-tight">Habit Dashboard</h3>
         <div className="flex items-center gap-3">
           <select
             value={period}
@@ -141,14 +141,14 @@ const HabitDashboard: React.FC = () => {
           <button
             onClick={() => setShowAdd(true)}
             // Add Habit button: White/Gray only
-            className="inline-flex items-center gap-2 px-4 py-2 bg-white text-black rounded-lg font-medium hover:bg-gray-200 transition border border-white shadow-lg shadow-white/10"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-[#ffffff] text-black rounded-lg font-medium "
           >
             <PlusCircle size={18} /> Add Habit
           </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
         {statPerHabit.map((s) => {
           const completed = s.done;
           const remaining = Math.max(0, s.total - completed);
