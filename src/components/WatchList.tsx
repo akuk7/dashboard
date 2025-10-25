@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Search, List, Trash2, Tag, PlusCircle, X } from 'lucide-react'; 
+import { Search,  Trash2, Tag, PlusCircle, X,  Clapperboard } from 'lucide-react'; 
 import supabase from '../lib/supabase';
 import type { WatchlistItem, WatchlistCategoryName, Category, OmdbResult, OmdbSearchResponse } from '../types/watchList'; 
 import CategoryModal from '../models/CategoryModel';
@@ -168,12 +168,12 @@ const Watchlist: React.FC = () => {
         <div className="p-6 bg-[#0A0A0A] rounded-xl text-gray-100 min-h-screen">
             {showCategoryModal && <CategoryModal onClose={() => setShowCategoryModal(false)} onCreate={handleCreateCategoryFromModal} />}
 
-            <h3 className="text-3xl font-extrabold text-white tracking-tight mb-8 border-b border-[#303030] pb-4 flex items-center gap-3">
-                <List className="w-6 h-6 text-gray-400" /> Dynamic Watchlist
+             <h3 className="text-xl font-bold mb-4 flex items-center gap-2 text-white border-b border-[#303030] pb-3">
+                <Clapperboard className="w-6 h-6 text-gray-400" /> Movie Watchlist
             </h3>
 
             {/* --- SEARCH BAR CONTAINER (relative for absolute results) --- */}
-            <div className="mb-8 p-4 bg-[#121212] rounded-xl border border-[#303030] relative z-20">
+            <div className="mb-8  rounded-xl border border-[#303030] relative z-20">
                 <div className="relative">
                     <input
                         type="text"
@@ -181,7 +181,7 @@ const Watchlist: React.FC = () => {
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                         // Adjusted padding for icons/buttons
-                        className="w-full bg-[#0A0A0A] border border-[#303030] focus:border-white rounded-lg px-4 py-3 pl-12 pr-12 text-white placeholder-gray-500 transition" 
+                        className="w-full bg-[#0A0A0A] border border-[#303030] focus:border-white rounded-lg px-4 py-2 pl-12 pr-12 text-white placeholder-gray-500 transition" 
                     />
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-500" />
 

@@ -142,7 +142,7 @@ const DigitalJournal: React.FC = () => {
                 />
             )}
 
-            <h3 className="text-3xl font-extrabold text-white tracking-tight mb-8 border-b border-[#303030] pb-4 flex items-center gap-3">
+             <h3 className="text-xl font-bold mb-4 flex items-center gap-2 text-white border-b border-[#303030] pb-3">
                 <BookOpen className="w-6 h-6 text-gray-400" /> Digital Journal
             </h3>
 
@@ -161,7 +161,7 @@ const DigitalJournal: React.FC = () => {
             </div>
 
             {/* Filters and Sort */}
-            <div className="flex justify-between items-center mb-6 p-3 bg-[#121212] rounded-xl border border-[#303030]">
+            <div className="flex justify-between items-center gap-3 mb-6 p-3 bg-[#121212] rounded-xl border border-[#303030]">
                 <div className="relative flex-grow max-w-sm">
                     <input
                         type="text"
