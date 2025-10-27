@@ -2,8 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Pie } from "react-chartjs-2";
 import { Chart as ChartJS, ArcElement, Tooltip, Legend, Title, } from "chart.js";
 import type { TooltipItem } from "chart.js";
-import { PlusCircle } from "lucide-react";
-import AddHabit from "./AddHabit";
+
 import type { Habit } from "../types/habit";
 import supabase from "../lib/supabase";
 
@@ -28,7 +27,10 @@ const periodDays: Record<PeriodKeys, number> = {
   month: 30,
   year: 365,
 };
-
+interface HabitDashboardProps {
+    period: PeriodKeys; // The period is now defined as a required prop
+    setPeriod: (period: PeriodKeys) => void; // Assuming you pass a setter to update the state in the parent
+}
 // Define chart options (unchanged)
 const chartOptions = {
   responsive: true,
@@ -62,9 +64,9 @@ type HabitRecordRow = {
     done: boolean;
 };
 
-const HabitDashboard: React.FC = () => {
-  const [showAdd, setShowAdd] = useState(false)
-  const [period, setPeriod] = useState<PeriodKeys>('month') 
+const HabitDashboard:React.FC<HabitDashboardProps>= ({period}) => {
+
+ 
   const [habits, setHabits] = useState<Habit[]>([])
   const [records, setRecords] = useState<Record<string, Record<string, boolean>>>({})
 
@@ -116,39 +118,14 @@ const HabitDashboard: React.FC = () => {
     })
   }, [habits, records, period])
 
-  const onAddHabit = () => {
-    loadHabits()
-    setShowAdd(false)
-  }
+ 
 
   return (
     // Main background is deep black
-    <div className="my-6 bg-[#0A0A0A] rounded-xl text-gray-100  w-[85vw] " id="habits">
-      <div className="flex justify-between items-center mb-6 border-b border-[#303030] pb-4">
-        <h3 className="text-2xl font-bold text-white tracking-tight">Habit Dashboard</h3>
-        <div className="flex items-center gap-3">
-          <select
-            value={period}
-            onChange={(e) => setPeriod(e.target.value as PeriodKeys)}
-            // Selector: Darker background, white border on focus
-            className="bg-[#121212] border border-[#303030] rounded-lg px-4 py-2 text-gray-300 focus:border-white transition text-sm"
-          >
-            <option value="week">Last 7 days</option>
-            <option value="month">Last 30 days</option>
-            <option value="year">Last 365 days</option>
-          </select>
+    <div className=" bg-[#0A0A0A] rounded-xl text-gray-100 flex flex-col  w-[30vw] " id="habits">
+      
 
-          <button
-            onClick={() => setShowAdd(true)}
-            // Add Habit button: White/Gray only
-            className="inline-flex items-center gap-2 px-4 py-2 bg-[#ffffff] text-black rounded-lg font-medium "
-          >
-            <PlusCircle size={18} /> Add Habit
-          </button>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 h-full">
         {statPerHabit.map((s) => {
           const completed = s.done;
           const remaining = Math.max(0, s.total - completed);
@@ -169,7 +146,7 @@ const HabitDashboard: React.FC = () => {
           };
           return (
             // Individual Habit Card: Slightly lighter background with border
-            <div key={s.id} className="bg-[#121212] rounded-xl p-5 border border-[#303030] shadow-md shadow-black/30">
+            <div key={s.id} className=" rounded-xl p-2 border border-[#303030] shadow-md shadow-black/30">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-3">
                   <span
@@ -178,27 +155,29 @@ const HabitDashboard: React.FC = () => {
                     style={{ background: s.color }}
                   />
                   <span
-                    className="font-bold text-lg text-white" 
+                    className="font-bold text-xs text-white" 
                   >
                     {s.name}
                   </span>
+                   
                 </div>
-                {/* Score display */}
-                <div className="text-xl font-bold text-white">
+                <div className="text-xs font-bold text-white">
                   {completed}
-                  <span className="text-gray-400 font-normal text-sm"> / {s.total}</span>
+                  <span className="text-gray-400 font-normal text-xs"> / {s.total}</span>
                 </div>
               </div>
               
-              <div className="w-full mx-auto mt-4" style={{ height: "160px" }}>
+              <div className="w-full mx-auto mt-4" style={{ height: "50px" }}>
                 <Pie data={data} options={chartOptions} />
               </div>
+              {/* Score display */}
+               
             </div>
           );
         })}
       </div>
 
-      {showAdd && <AddHabit onClose={() => setShowAdd(false)} onAdd={onAddHabit} />}
+     
     </div>
   );
 };

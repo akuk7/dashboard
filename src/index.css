@@ -15,39 +15,49 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Custom Scrollbar for WebKit Browsers (Chrome, Edge, Safari) */
+/* Custom Scrollbar targeting ALL axes and elements with overflow */
 
-/* 1. Define the width of the scrollbar */
-/* Target elements that should have the custom scrollbar (e.g., the whole body or specific divs) */
+/* Target the whole document and elements that use scrolling */
 body::-webkit-scrollbar, 
-.grid.overflow-y-auto::-webkit-scrollbar,
+.overflow-x-auto::-webkit-scrollbar,
 .overflow-y-auto::-webkit-scrollbar {
-    width: 4px; /* Make the scrollbar thin */
-    height: 8px; /* For horizontal scrollbars if needed */
-   
+    /* Set dimensions for BOTH axes */
+    width: 4px !important; 
+    height: 4px !important; 
 }
 
-/* 2. Style the TRACK (the background groove) */
+/* Style the TRACK (Background) */
 body::-webkit-scrollbar-track, 
-.grid.overflow-y-auto::-webkit-scrollbar-track,
+.overflow-x-auto::-webkit-scrollbar-track,
 .overflow-y-auto::-webkit-scrollbar-track {
-    background: #121212; /* Dark background color (matches your card color) */
-    border-radius: 10px;
+    background: #121212 !important;
+    border-radius: 10px !important;
 }
 
-/* 3. Style the THUMB (the movable bar) */
+/* Style the THUMB (The Movable Bar) */
 body::-webkit-scrollbar-thumb, 
-.grid.overflow-y-auto::-webkit-scrollbar-thumb,
+.overflow-x-auto::-webkit-scrollbar-thumb,
 .overflow-y-auto::-webkit-scrollbar-thumb {
-    background-color: #303030; /* Medium gray color for the bar itself */
-    border-radius: 10px;
+    background-color: #303030 !important;
+    border-radius: 10px !important;
 }
 
-/* 4. Style the THUMB when hovering (optional, but nice touch) */
-body::-webkit-scrollbar-thumb:hover, 
-.grid.overflow-y-auto::-webkit-scrollbar-thumb:hover,
-.overflow-y-auto::-webkit-scrollbar-thumb:hover {
-    background-color: #505050; /* Slightly lighter gray on hover */
+/* Hide buttons and corners (CRUCIAL for horizontal minimalist look) */
+body::-webkit-scrollbar-button,
+.overflow-x-auto::-webkit-scrollbar-button,
+.overflow-y-auto::-webkit-scrollbar-button {
+    display: none !important;
+}
+
+body::-webkit-scrollbar-corner,
+.overflow-x-auto::-webkit-scrollbar-corner,
+.overflow-y-auto::-webkit-scrollbar-corner {
+    background: transparent !important;
+}
+
+body::-webkit-scrollbar-button,
+.overflow-y-auto::-webkit-scrollbar-button {
+    display: none; /* Removes the little arrows/buttons at the ends */
 }
 
 

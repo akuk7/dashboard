@@ -96,7 +96,7 @@ const HabitTracker: React.FC = () => {
   }
 
   return (
-    <div className=" w-[85vw]">
+    <div className=" w-[54vw]">
       <div className="bg-[#121212] rounded-xl border border-[#303030] overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full border-collapse min-w-[600px] md:min-w-[700px]">
@@ -134,12 +134,12 @@ const HabitTracker: React.FC = () => {
                               d === formatDate(new Date()) ? "1px solid #444" : "none",
                           }}
                           className="inline-flex items-center justify-center 
-                                     w-6 h-6 md:w-12 md:h-12 
+                                     w-3 h-3 md:w-7 md:h-7
                                      rounded-md md:rounded-lg 
                                      hover:opacity-90 transition-opacity"
                         >
                           <Check
-                            className="w-2 h-2 md:w-6 md:h-6"
+                            className="w-2 h-2 md:w-3 md:h-3"
                             style={{
                               color: checked ? bgColor : "transparent",
                               stroke: checked ? bgColor : "transparent",

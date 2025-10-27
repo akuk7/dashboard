@@ -42,13 +42,14 @@ const TodoKanban: React.FC = () => {
 
     // FIX: The query must fetch all non-DONE tasks OR recently DONE tasks.
     const { data } = await supabase
-      .from("todos")
-      .select("*")
-      // Use Supabase's `.or()` filter to combine two conditions:
-      // 1. status is NOT 'DONE' (fetches all TODO and IN_PROGRESS tasks)
-      // 2. OR status IS 'DONE' AND completed_at is GTE lastWeek (fetches recent DONE tasks)
-      .or(`status.neq.DONE, and(status.eq.DONE, completed_at.gte.${lastWeek})`)
-      .order("order_index");
+    .from("todos")
+    .select("*")
+    .or(`status.neq.DONE, and(status.eq.DONE, completed_at.gte.${lastWeek})`)
+    
+    // 1. Sort by expected_complete_at: ASC (Ascending = earliest date first)
+    // 2. Add 'order_index' as a secondary sort key in case due dates are the same.
+    .order("expected_complete_at", { ascending: true }) 
+    .order("order_index", { ascending: true });
 
     const fetchedTasks = (data as TodoTask[]) || [];
 
@@ -289,11 +290,12 @@ const TodoKanban: React.FC = () => {
                 <Droppable droppableId={column.id} key={column.id}>
                   {(provided) => (
                     <div
-                      ref={provided.innerRef}
-                      {...provided.droppableProps}
-                      className="bg-[#121212] rounded-sm p-2 border border-[#303030] shadow-xl h-[500px] w-[300px]"
-                    >
-                      <h4 className="text-md font-bold mb-4 border-b border-[#303030] pb-2 text-white">
+            ref={provided.innerRef}
+            {...provided.droppableProps}
+            // 1. UPDATE: Set column to flex container (flex-col) and set a definite height/max-height
+            className="bg-[#121212] rounded-xl p-2 border border-[#303030] shadow-xl h-[500px] w-[300px] flex flex-col" 
+        >
+                      <h4 className="text-md font-bold mb-4 border-b border-[#303030] pb-2 text-white flex-shrink-0">
                         {column.title}{" "}
                        <span
         className="ml-2 px-2  text-[#0a0a0a]" // Keep static classes here
@@ -305,7 +307,7 @@ const TodoKanban: React.FC = () => {
         {tasksInColumn.length}
     </span>
                       </h4>
-
+<div className="flex-grow overflow-y-auto pr-1">
                       {tasksInColumn.map((task, index) => (
                         <Draggable
                           draggableId={task.id}
@@ -347,6 +349,7 @@ const TodoKanban: React.FC = () => {
                           )}
                         </Draggable>
                       ))}
+                      </div>
                       {provided.placeholder}
                     </div>
                   )}

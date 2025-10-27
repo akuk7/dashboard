@@ -50,7 +50,7 @@ const HeroSection: React.FC = () => {
     return (
         <section 
             id="home" 
-            className="relative w-full min-h-[calc(100vh-40px)] flex flex-col items-center justify-center bg-black text-white px-4 py-20 overflow-hidden border-b border-[#303030]"
+            className="relative w-full min-h-[calc(100vh-40px)] flex flex-col items-center justify-center bg-black text-white px-4 py-20 overflow-hidden border-b border-[#303030] mb-4"
             // Grid background pattern similar to Next.js image
             style={{
                 backgroundImage: `
