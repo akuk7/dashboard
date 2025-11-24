@@ -4,13 +4,11 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
-    "lint": "eslint .",
-    "preview": "vite preview",
-    "predeploy": "npm run build",
-    "deploy": "gh-pages -d dist"
-  },
+  "dev": "next dev",
+  "build": "next build",
+  "start": "next start", // For serving the built application
+  "lint": "next lint"    // Use next's linter setup
+},
   "dependencies": {
     "@excalidraw/excalidraw": "^0.18.0",
     "@hello-pangea/dnd": "^18.0.1",
