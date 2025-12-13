@@ -6,8 +6,8 @@
   "scripts": {
   "dev": "next dev",
   "build": "next build",
-  "start": "next start", // For serving the built application
-  "lint": "next lint"    // Use next's linter setup
+  "start": "next start", 
+  "lint": "next lint"    
 },
   "dependencies": {
     "@excalidraw/excalidraw": "^0.18.0",
