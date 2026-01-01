@@ -7,7 +7,7 @@ import CategoryModal from '../models/CategoryModel';
 // --- CONFIGURATION ---
 const OMDB_API_KEY = import.meta.env.VITE_OMDB_API_KEY; 
 const BASE_CATEGORY = 'General';
-const DEFAULT_CATEGORIES = [BASE_CATEGORY, 'Must Watch', 'Later', 'Kids'];
+const DEFAULT_CATEGORIES = [BASE_CATEGORY];
 
 // --- DATA ACCESS FUNCTIONS (defined here for completeness) ---
 
