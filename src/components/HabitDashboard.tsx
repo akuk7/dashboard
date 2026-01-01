@@ -13,9 +13,18 @@ const formatDate = (d: Date) => d.toISOString().split("T")[0];
 const genRange = (days: number) => {
   const res: string[] = [];
   const today = new Date();
+  
+  // Project Start Anchor: Jan 1st, 2026
+  const projectStart = new Date("2026-01-01T00:00:00Z");
+  
   for (let i = 0; i < days; i++) {
     const dt = new Date(today);
     dt.setDate(today.getDate() - i);
+    dt.setUTCHours(0, 0, 0, 0);
+
+    // Stop if we reach before Jan 1st, 2026
+    if (dt < projectStart) break;
+
     res.push(formatDate(dt));
   }
   return res;
@@ -109,14 +118,46 @@ const HabitDashboard:React.FC<HabitDashboardProps>= ({period}) => {
   }, [period])
 
   const statPerHabit = useMemo(() => {
-    const days = periodDays[period]
-    const dates = genRange(days)
+    // 1. Determine how many days have actually passed since the project started
+    const today = new Date();
+    const projectStart = new Date("2026-01-01T00:00:00Z");
+    const diffTime = Math.abs(today.getTime() - projectStart.getTime());
+    const daysSinceStart = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    // 2. The denominator is the smaller of: the chosen period OR days since start
+    const daysToCalculate = Math.min(periodDays[period], daysSinceStart);
+    
+    // 3. Generate only the valid dates within that range
+    const dates = genRange(daysToCalculate);
     
     return habits.map(h => {
-      const done = dates.reduce((acc,d) => acc + (records[d] && records[d][h.id] ? 1 : 0), 0)
-      return { id: h.id, name: h.name, color: h.color, done, total: dates.length }
-    })
-  }, [habits, records, period])
+      // 4. Count 'done' only for days this habit was actually scheduled (frequency)
+      const done = dates.reduce((acc, d) => {
+        const dateObj = new Date(d);
+        const dayOfWeek = dateObj.getDay();
+        
+        // Check if the habit record exists AND if it was a scheduled day
+        const isScheduled = h.frequency ? h.frequency.includes(dayOfWeek) : true;
+        const isDone = records[d] && records[d][h.id];
+        
+        return acc + (isDone && isScheduled ? 1 : 0);
+      }, 0);
+
+      // 5. Calculate total potential days (only count days the habit was scheduled)
+      const totalPotentialDays = dates.filter(d => {
+        const dayOfWeek = new Date(d).getDay();
+        return h.frequency ? h.frequency.includes(dayOfWeek) : true;
+      }).length;
+
+      return { 
+        id: h.id, 
+        name: h.name, 
+        color: h.color, 
+        done, 
+        total: totalPotentialDays // This is now your dynamic denominator
+      };
+    });
+}, [habits, records, period]);
 
  
 
