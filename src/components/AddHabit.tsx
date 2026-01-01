@@ -1,6 +1,5 @@
 import React, { useState } from 'react'
 import { X, PlusCircle } from 'lucide-react'
-import type { Habit } from '../types/habit'
 import supabase from '../lib/supabase'
 
 type Props = {
