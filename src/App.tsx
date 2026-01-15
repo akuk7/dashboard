@@ -36,7 +36,6 @@ function App() {
       </div>
     );
   }
-console.log("session",session)
   return (
     <div className='w-100vw bg-[#000000]'>
       {!session ? (

@@ -41,7 +41,6 @@ const getCurrentSundayDate = () => {
 
   d.setUTCHours(0, 0, 0, 0);
 
-  console.log(d.toISOString());
 
   return d.toISOString();
 };
@@ -75,7 +74,6 @@ const startOfToday = getStartOfTodayUTC();
 
       .gte("expected_complete_at", currentSunday);
 
-    console.log(data);
 
     if (error) {
       console.error("Chart data error:", error);

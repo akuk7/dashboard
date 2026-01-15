@@ -10,6 +10,7 @@ import {
   Home,
   LogOut,
   Newspaper,
+  Terminal,
 } from "lucide-react";
 
 // 💡 NEW: Import the Supabase client (adjust the path if needed)
@@ -24,6 +25,8 @@ interface NavItem {
 interface NavBarProps {
   newspaperUrl: string | null;
   isNewspaperLoading: boolean;
+  leetcodeUrl: string | null;
+  isLeetCodeLoading: boolean;
 }
 
 const NAV_ITEMS: NavItem[] = [
@@ -35,9 +38,15 @@ const NAV_ITEMS: NavItem[] = [
   { id: "journal", title: "Journal", icon: BookOpen },
   { id: "movies", title: "Movies", icon: Clapperboard },
   { id: "newspaper", title: "Newspaper", icon: Newspaper },
+  { id: "leetcode", title: "LeetCode", icon: Terminal },
 ];
 
-const NavBar: React.FC<NavBarProps> = ({ newspaperUrl, isNewspaperLoading }) => {
+const NavBar: React.FC<NavBarProps> = ({
+  newspaperUrl,
+  isNewspaperLoading,
+  leetcodeUrl,
+  isLeetCodeLoading
+}) => {
 
   // 💡 NEW: Supabase Logout Function
   const handleLogout = async () => {
@@ -67,6 +76,22 @@ const NavBar: React.FC<NavBarProps> = ({ newspaperUrl, isNewspaperLoading }) => 
     window.open(newspaperUrl, '_blank');
   };
 
+  const handleLeetCodeClick = (e: React.MouseEvent) => {
+    if (isLeetCodeLoading) {
+      e.preventDefault();
+      alert("LeetCode daily problem is still being fetched... Please wait.");
+      return;
+    }
+
+    if (!leetcodeUrl) {
+      e.preventDefault();
+      alert("Could not find today's LeetCode problem. LeetCode's site might be blocking the fetch.");
+      return;
+    }
+
+    window.open(leetcodeUrl, '_blank');
+  };
+
   return (
     // Fixed Top Nav Bar: Thin (h-10), high-contrast, dark background
     <nav className="fixed top-0 left-0 w-full bg-[#0A0A0A] border-b border-[#303030] z-50 shadow-lg">
@@ -81,17 +106,21 @@ const NavBar: React.FC<NavBarProps> = ({ newspaperUrl, isNewspaperLoading }) => 
 
         {/* CENTER: Navigation Links */}
         <div className="flex space-x-6">
-          {NAV_ITEMS.map((item) => (
-            item.id === 'newspaper' ? (
+          {NAV_ITEMS.map((item) => {
+            const isSpecial = item.id === 'newspaper' || item.id === 'leetcode';
+            const isLoading = item.id === 'newspaper' ? isNewspaperLoading : (item.id === 'leetcode' ? isLeetCodeLoading : false);
+            const handleClick = item.id === 'newspaper' ? handleNewspaperClick : handleLeetCodeClick;
+
+            return isSpecial ? (
               <button
                 key={item.id}
-                onClick={handleNewspaperClick}
-                className={`flex items-center text-xs font-medium transition-colors duration-200 ${isNewspaperLoading ? 'text-gray-600 cursor-wait' : 'text-gray-400 hover:text-white'
+                onClick={handleClick}
+                className={`flex items-center text-xs font-medium transition-colors duration-200 ${isLoading ? 'text-gray-600 cursor-wait' : 'text-gray-400 hover:text-white'
                   }`}
               >
-                <item.icon className={`w-3 h-3 mr-1 ${isNewspaperLoading ? 'animate-pulse' : ''}`} />
+                <item.icon className={`w-3 h-3 mr-1 ${isLoading ? 'animate-pulse' : ''}`} />
                 {item.title}
-                {isNewspaperLoading && <span className="ml-1 text-[8px] opacity-70">(...)</span>}
+                {isLoading && <span className="ml-1 text-[8px] opacity-70">(...)</span>}
               </button>
             ) : (
               <a
@@ -102,8 +131,8 @@ const NavBar: React.FC<NavBarProps> = ({ newspaperUrl, isNewspaperLoading }) => 
                 <item.icon className="w-3 h-3 mr-1" />
                 {item.title}
               </a>
-            )
-          ))}
+            );
+          })}
         </div>
 
         {/* RIGHT: Logout Button */}
