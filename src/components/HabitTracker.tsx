@@ -122,34 +122,48 @@ const HabitTracker: React.FC = () => {
                     {h.name}
                   </td>
                   {dates.map((d) => {
-                    const checked = !!(records[d] && records[d][h.id]);
-                    const bgColor = h.color || "#60a5fa";
-                    return (
-                      <td key={d} className="p-0.5 md:p-1.5 text-center">
-                        <button
-                          onClick={() => toggle(d, h.id)}
-                          style={{
-                            backgroundColor: `${bgColor}30`,
-                            border:
-                              d === formatDate(new Date()) ? "1px solid #444" : "none",
-                          }}
-                          className="inline-flex items-center justify-center 
-                                     w-3 h-3 md:w-7 md:h-7
-                                     rounded-md md:rounded-lg 
-                                     hover:opacity-90 transition-opacity"
-                        >
-                          <Check
-                            className="w-2 h-2 md:w-3 md:h-3"
-                            style={{
-                              color: checked ? bgColor : "transparent",
-                              stroke: checked ? bgColor : "transparent",
-                              strokeWidth: checked ? 1: 0,
-                            }}
-                          />
-                        </button>
-                      </td>
-                    );
-                  })}
+  const dateObj = new Date(d);
+  const dayOfWeek = dateObj.getDay(); // 0-6
+  
+  // Check if this habit is supposed to be followed on this day
+  // Default to all days if frequency is missing for old records
+  const isScheduled = h.frequency ? h.frequency.includes(dayOfWeek) : true;
+  
+  const checked = !!(records[d] && records[d][h.id]);
+  const bgColor = h.color || "#60a5fa";
+
+  return (
+    <td key={d} className="p-0.5 md:p-1.5 text-center">
+      <button
+        // Only allow toggle if it's a scheduled day
+        onClick={() => isScheduled && toggle(d, h.id)}
+        disabled={!isScheduled}
+        style={{
+          // Dim the box if it's not a scheduled day
+          backgroundColor: isScheduled ? `${bgColor}30` : '#1a1a1a',
+          border: d === formatDate(new Date()) && isScheduled ? "1px solid #666" : "none",
+          cursor: isScheduled ? 'pointer' : 'not-allowed',
+          opacity: isScheduled ? 1 : 0.3,
+        }}
+        className="inline-flex items-center justify-center w-3 h-3 md:w-7 md:h-7 rounded-md md:rounded-lg transition-all"
+      >
+        {isScheduled && (
+          <Check
+            className="w-2 h-2 md:w-3 md:h-3"
+            style={{
+              color: checked ? bgColor : "transparent",
+              stroke: checked ? bgColor : "transparent",
+              strokeWidth: checked ? 2 : 0,
+            }}
+          />
+        )}
+        {!isScheduled && (
+          <div className="w-1 h-1 bg-gray-800 rounded-full" /> // Subtle dot for skipped days
+        )}
+      </button>
+    </td>
+  );
+})}
                 </tr>
               ))}
             </tbody>

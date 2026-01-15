@@ -3,4 +3,5 @@ export type Habit = {
   name: string
   created_at: string // ISO
   color?: string
+  frequency?: number[]
 }
