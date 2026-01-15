@@ -8,16 +8,22 @@ import {
   Clapperboard,
   Music,
   Home,
-  LogOut, // 💡 NEW: Import the LogOut icon
+  LogOut,
+  Newspaper,
 } from "lucide-react";
 
 // 💡 NEW: Import the Supabase client (adjust the path if needed)
-import { supabase } from "../lib/supabase"; 
+import { supabase } from "../lib/supabase";
 
 interface NavItem {
   id: string;
   title: string;
   icon: React.ElementType;
+}
+
+interface NavBarProps {
+  newspaperUrl: string | null;
+  isNewspaperLoading: boolean;
 }
 
 const NAV_ITEMS: NavItem[] = [
@@ -28,23 +34,37 @@ const NAV_ITEMS: NavItem[] = [
   { id: "habits", title: "Habits", icon: CheckSquare },
   { id: "journal", title: "Journal", icon: BookOpen },
   { id: "movies", title: "Movies", icon: Clapperboard },
+  { id: "newspaper", title: "Newspaper", icon: Newspaper },
 ];
 
-const NavBar: React.FC = () => {
+const NavBar: React.FC<NavBarProps> = ({ newspaperUrl, isNewspaperLoading }) => {
 
   // 💡 NEW: Supabase Logout Function
   const handleLogout = async () => {
-    // 1. Call the signOut function from the Supabase client
     const { error } = await supabase.auth.signOut();
-
     if (error) {
       console.error("Error signing out:", error.message);
-      // Optional: Display a user-friendly error notification
       alert("Logout failed. Please try again.");
     } else {
-      // 2. The App.tsx listener will detect the change and rerender to show AuthForm.
       console.log("User successfully logged out.");
     }
+  };
+
+  const handleNewspaperClick = (e: React.MouseEvent) => {
+    if (isNewspaperLoading) {
+      e.preventDefault();
+      alert("Newspaper link is still loading... Please wait a moment.");
+      return;
+    }
+
+    if (!newspaperUrl) {
+      e.preventDefault();
+      alert("Could not retrieve the newspaper link for today. Please try again later.");
+      return;
+    }
+
+    // Open in new tab
+    window.open(newspaperUrl, '_blank');
   };
 
   return (
@@ -52,7 +72,7 @@ const NavBar: React.FC = () => {
     <nav className="fixed top-0 left-0 w-full bg-[#0A0A0A] border-b border-[#303030] z-50 shadow-lg">
       {/* Container is now split into three sections: Left (Logo), Center (Nav Links), Right (Logout) */}
       <div className="flex justify-between items-center h-10 px-6">
-        
+
         {/* LEFT: Logo / Brand Name */}
         <div className="flex items-center gap-2 text-sm font-extrabold text-white tracking-widest uppercase">
           <Menu className="w-4 h-4 text-gray-400" />
@@ -62,17 +82,30 @@ const NavBar: React.FC = () => {
         {/* CENTER: Navigation Links */}
         <div className="flex space-x-6">
           {NAV_ITEMS.map((item) => (
-            <a
-              key={item.id}
-              href={`#${item.id}`} // Links to anchor IDs in your main layout
-              className="flex items-center text-xs font-medium text-gray-400 hover:text-white transition-colors duration-200"
-            >
-              <item.icon className="w-3 h-3 mr-1" />
-              {item.title}
-            </a>
+            item.id === 'newspaper' ? (
+              <button
+                key={item.id}
+                onClick={handleNewspaperClick}
+                className={`flex items-center text-xs font-medium transition-colors duration-200 ${isNewspaperLoading ? 'text-gray-600 cursor-wait' : 'text-gray-400 hover:text-white'
+                  }`}
+              >
+                <item.icon className={`w-3 h-3 mr-1 ${isNewspaperLoading ? 'animate-pulse' : ''}`} />
+                {item.title}
+                {isNewspaperLoading && <span className="ml-1 text-[8px] opacity-70">(...)</span>}
+              </button>
+            ) : (
+              <a
+                key={item.id}
+                href={`#${item.id}`}
+                className="flex items-center text-xs font-medium text-gray-400 hover:text-white transition-colors duration-200"
+              >
+                <item.icon className="w-3 h-3 mr-1" />
+                {item.title}
+              </a>
+            )
           ))}
         </div>
-        
+
         {/* RIGHT: Logout Button */}
         <button
           onClick={handleLogout}

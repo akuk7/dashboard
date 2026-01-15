@@ -10,15 +10,34 @@ import TodoKanban from "./components/TodoKanban";
 import NavBar from "./components/Navbar";
 import HeroSection from "./components/HeroSection";
 import Habits from "./components/Habits";
+import { useState, useEffect } from "react";
+import { fetchTheHinduLink } from "./lib/newspaperService";
 // import DayCounter from './components/DayCounter'
 
 function Dashboard() {
+  const [newspaperUrl, setNewspaperUrl] = useState<string | null>(null);
+  const [isNewspaperLoading, setIsNewspaperLoading] = useState(true);
+
+  useEffect(() => {
+    const loadNewspaper = async () => {
+      try {
+        const url = await fetchTheHinduLink();
+        setNewspaperUrl(url);
+      } catch (err) {
+        console.error("Failed to fetch newspaper:", err);
+      } finally {
+        setIsNewspaperLoading(false);
+      }
+    };
+    loadNewspaper();
+  }, []);
+
   return (
     <div className="flex flex-col items-center w-[99vw] justify-center my-20">
       <HeroSection />
-      <NavBar/>
-      <TodoKanban/>
-      
+      <NavBar newspaperUrl={newspaperUrl} isNewspaperLoading={isNewspaperLoading} />
+      <TodoKanban />
+
       <div className="flex w-[85vw] justify-start mt-10 gap-6" id="breaks">
         <BreakTracker />
         <BreakDashboard />
@@ -27,7 +46,7 @@ function Dashboard() {
           <SpotifyPlayer />
         </div>
       </div>
-      <Habits/>
+      <Habits />
       <div className="flex w-[85vw] justify-start mt-10 gap-6">
         <DigitalJournal />
         <Watchlist />
