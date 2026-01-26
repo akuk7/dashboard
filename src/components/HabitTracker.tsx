@@ -122,48 +122,53 @@ const HabitTracker: React.FC = () => {
                     {h.name}
                   </td>
                   {dates.map((d) => {
-  const dateObj = new Date(d);
-  const dayOfWeek = dateObj.getDay(); // 0-6
-  
-  // Check if this habit is supposed to be followed on this day
-  // Default to all days if frequency is missing for old records
-  const isScheduled = h.frequency ? h.frequency.includes(dayOfWeek) : true;
-  
-  const checked = !!(records[d] && records[d][h.id]);
-  const bgColor = h.color || "#60a5fa";
+                    const dateObj = new Date(d);
+                    const dayOfWeek = dateObj.getDay(); // 0-6
 
-  return (
-    <td key={d} className="p-0.5 md:p-1.5 text-center">
-      <button
-        // Only allow toggle if it's a scheduled day
-        onClick={() => isScheduled && toggle(d, h.id)}
-        disabled={!isScheduled}
-        style={{
-          // Dim the box if it's not a scheduled day
-          backgroundColor: isScheduled ? `${bgColor}30` : '#1a1a1a',
-          border: d === formatDate(new Date()) && isScheduled ? "1px solid #666" : "none",
-          cursor: isScheduled ? 'pointer' : 'not-allowed',
-          opacity: isScheduled ? 1 : 0.3,
-        }}
-        className="inline-flex items-center justify-center w-3 h-3 md:w-7 md:h-7 rounded-md md:rounded-lg transition-all"
-      >
-        {isScheduled && (
-          <Check
-            className="w-2 h-2 md:w-3 md:h-3"
-            style={{
-              color: checked ? bgColor : "transparent",
-              stroke: checked ? bgColor : "transparent",
-              strokeWidth: checked ? 2 : 0,
-            }}
-          />
-        )}
-        {!isScheduled && (
-          <div className="w-1 h-1 bg-gray-800 rounded-full" /> // Subtle dot for skipped days
-        )}
-      </button>
-    </td>
-  );
-})}
+                    const habitStart = new Date(h.created_at);
+                    habitStart.setUTCHours(0, 0, 0, 0);
+                    const checkDate = new Date(d);
+                    checkDate.setUTCHours(0, 0, 0, 0);
+
+                    // Check if this habit is supposed to be followed on this day
+                    // AND if the day is not before habit creation
+                    const isScheduled = (h.frequency ? h.frequency.includes(dayOfWeek) : true) && (checkDate >= habitStart);
+
+                    const checked = !!(records[d] && records[d][h.id]);
+                    const bgColor = h.color || "#60a5fa";
+
+                    return (
+                      <td key={d} className="p-0.5 md:p-1.5 text-center">
+                        <button
+                          // Only allow toggle if it's a scheduled day
+                          onClick={() => isScheduled && toggle(d, h.id)}
+                          disabled={!isScheduled}
+                          style={{
+                            // Dim the box if it's not a scheduled day
+                            backgroundColor: isScheduled ? `${bgColor}30` : '#1a1a1a',
+                            border: d === formatDate(new Date()) && isScheduled ? "1px solid #666" : "none",
+                            cursor: isScheduled ? 'pointer' : 'not-allowed',
+                            opacity: isScheduled ? 1 : 0.3,
+                          }}
+                          className="inline-flex items-center justify-center w-3 h-3 md:w-7 md:h-7 rounded-md md:rounded-lg transition-all"
+                        >
+                          {isScheduled && (
+                            <Check
+                              className="w-2 h-2 md:w-3 md:h-3"
+                              style={{
+                                color: checked ? bgColor : "transparent",
+                                stroke: checked ? bgColor : "transparent",
+                                strokeWidth: checked ? 2 : 0,
+                              }}
+                            />
+                          )}
+                          {!isScheduled && (
+                            <div className="w-1 h-1 bg-gray-800 rounded-full" /> // Subtle dot for skipped days
+                          )}
+                        </button>
+                      </td>
+                    );
+                  })}
                 </tr>
               ))}
             </tbody>

@@ -19,30 +19,31 @@ const DAYS = [
 
 const AddHabit: React.FC<Props> = ({ onClose, onAdd }) => {
   const [name, setName] = useState('')
-  const [color, setColor] = useState('#60a5fa') 
+  const [color, setColor] = useState('#60a5fa')
   const [frequency, setFrequency] = useState<number[]>([1, 2, 3, 4, 5]); // Default Weekdays
+  const [createdAt, setCreatedAt] = useState(new Date().toISOString())
 
   const toggleDay = (val: number) => {
-    setFrequency(prev => 
+    setFrequency(prev =>
       prev.includes(val) ? prev.filter(d => d !== val) : [...prev, val]
     );
   };
 
   const handleAdd = async () => {
     if (!name.trim() || frequency.length === 0) return
-    
+
     const newHabit = {
-      id: crypto.randomUUID(), 
+      id: crypto.randomUUID(),
       name: name.trim(),
       color,
       frequency,
-      created_at: new Date().toISOString(),
+      created_at: createdAt,
     }
-    
+
     const { error } = await supabase.from('habits').insert([newHabit])
     if (error) return console.error('Error adding habit:', error)
-    
-    onAdd() 
+
+    onAdd()
     onClose()
   }
 
@@ -75,17 +76,26 @@ const AddHabit: React.FC<Props> = ({ onClose, onAdd }) => {
                 <span className="text-[10px] uppercase text-gray-500 font-bold">{day.label}</span>
                 <button
                   onClick={() => toggleDay(day.value)}
-                  className={`w-8 h-8 rounded-md border transition-all flex items-center justify-center ${
-                    isActive 
-                      ? 'bg-white border-white text-black' 
-                      : 'bg-transparent border-[#303030] text-gray-500 hover:border-gray-500'
-                  }`}
+                  className={`w-8 h-8 rounded-md border transition-all flex items-center justify-center ${isActive
+                    ? 'bg-white border-white text-black'
+                    : 'bg-transparent border-[#303030] text-gray-500 hover:border-gray-500'
+                    }`}
                 >
                   {isActive && <Check className="w-4 h-4" />}
                 </button>
               </div>
             );
           })}
+        </div>
+
+        <div className="flex justify-between items-center mb-6">
+          <label className="text-sm font-medium text-gray-300">Start Date</label>
+          <input
+            type="date"
+            value={createdAt.split('T')[0]}
+            onChange={(e) => setCreatedAt(new Date(e.target.value).toISOString())}
+            className="bg-[#0A0A0A] border border-[#303030] text-gray-100 rounded-lg px-3 py-1 text-sm focus:border-white outline-none"
+          />
         </div>
 
         <div className="flex justify-between items-center mb-6">

@@ -13,17 +13,11 @@ const formatDate = (d: Date) => d.toISOString().split("T")[0];
 const genRange = (days: number) => {
   const res: string[] = [];
   const today = new Date();
-  
-  // Project Start Anchor: Jan 1st, 2026
-  const projectStart = new Date("2026-01-01T00:00:00Z");
-  
+
   for (let i = 0; i < days; i++) {
     const dt = new Date(today);
     dt.setDate(today.getDate() - i);
     dt.setUTCHours(0, 0, 0, 0);
-
-    // Stop if we reach before Jan 1st, 2026
-    if (dt < projectStart) break;
 
     res.push(formatDate(dt));
   }
@@ -37,8 +31,8 @@ const periodDays: Record<PeriodKeys, number> = {
   year: 365,
 };
 interface HabitDashboardProps {
-    period: PeriodKeys; // The period is now defined as a required prop
-    setPeriod: (period: PeriodKeys) => void; // Assuming you pass a setter to update the state in the parent
+  period: PeriodKeys; // The period is now defined as a required prop
+  setPeriod: (period: PeriodKeys) => void; // Assuming you pass a setter to update the state in the parent
 }
 // Define chart options (unchanged)
 const chartOptions = {
@@ -68,14 +62,14 @@ const chartOptions = {
 };
 
 type HabitRecordRow = {
-    habit_id: string;
-    date: string;
-    done: boolean;
+  habit_id: string;
+  date: string;
+  done: boolean;
 };
 
-const HabitDashboard:React.FC<HabitDashboardProps>= ({period}) => {
+const HabitDashboard: React.FC<HabitDashboardProps> = ({ period }) => {
 
- 
+
   const [habits, setHabits] = useState<Habit[]>([])
   const [records, setRecords] = useState<Record<string, Record<string, boolean>>>({})
 
@@ -84,7 +78,7 @@ const HabitDashboard:React.FC<HabitDashboardProps>= ({period}) => {
       .from('habits')
       .select('*')
       .order('created_at', { ascending: false })
-    setHabits((hData as Habit[]) || []) 
+    setHabits((hData as Habit[]) || [])
   }
 
   useEffect(() => {
@@ -93,78 +87,86 @@ const HabitDashboard:React.FC<HabitDashboardProps>= ({period}) => {
 
   useEffect(() => {
     const loadRecords = async () => {
-     const days = periodDays[period];
-  const dates = genRange(days);
-  const { data, error } = await supabase
-    .from('habit_records')
-    .select('habit_id,date,done')
-    .in('date', dates);
+      const days = periodDays[period];
+      const dates = genRange(days);
+      const { data, error } = await supabase
+        .from('habit_records')
+        .select('habit_id,date,done')
+        .in('date', dates);
 
-  if (error) {
-    console.error('Error loading records:', error);
-    return;
-  }
+      if (error) {
+        console.error('Error loading records:', error);
+        return;
+      }
 
-  const map: Record<string, Record<string, boolean>> = {};
-  ((data ?? []) as HabitRecordRow[]).forEach((record: HabitRecordRow) => {
-    map[record.date] = map[record.date] || {};
-    map[record.date][record.habit_id] = !!record.done;
-  });
-  
-  setRecords(map);
+      const map: Record<string, Record<string, boolean>> = {};
+      ((data ?? []) as HabitRecordRow[]).forEach((record: HabitRecordRow) => {
+        map[record.date] = map[record.date] || {};
+        map[record.date][record.habit_id] = !!record.done;
+      });
+
+      setRecords(map);
 
     }
     loadRecords()
   }, [period])
 
   const statPerHabit = useMemo(() => {
-    // 1. Determine how many days have actually passed since the project started
     const today = new Date();
-    const projectStart = new Date("2026-01-01T00:00:00Z");
-    const diffTime = Math.abs(today.getTime() - projectStart.getTime());
-    const daysSinceStart = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    today.setUTCHours(0, 0, 0, 0);
 
-    // 2. The denominator is the smaller of: the chosen period OR days since start
-    const daysToCalculate = Math.min(periodDays[period], daysSinceStart);
-    
-    // 3. Generate only the valid dates within that range
-    const dates = genRange(daysToCalculate);
-    
     return habits.map(h => {
+      const habitStart = new Date(h.created_at);
+      habitStart.setUTCHours(0, 0, 0, 0);
+
+      // Generate dates for the chosen period
+      const daysInPeriod = periodDays[period];
+      const datesToCheck = [];
+
+      for (let i = 0; i < daysInPeriod; i++) {
+        const dt = new Date(today);
+        dt.setDate(today.getDate() - i);
+        dt.setUTCHours(0, 0, 0, 0);
+
+        // Only count if it's NOT before habit creation
+        if (dt < habitStart) break;
+        datesToCheck.push(formatDate(dt));
+      }
+
       // 4. Count 'done' only for days this habit was actually scheduled (frequency)
-      const done = dates.reduce((acc, d) => {
+      const done = datesToCheck.reduce((acc, d) => {
         const dateObj = new Date(d);
         const dayOfWeek = dateObj.getDay();
-        
+
         // Check if the habit record exists AND if it was a scheduled day
         const isScheduled = h.frequency ? h.frequency.includes(dayOfWeek) : true;
         const isDone = records[d] && records[d][h.id];
-        
+
         return acc + (isDone && isScheduled ? 1 : 0);
       }, 0);
 
       // 5. Calculate total potential days (only count days the habit was scheduled)
-      const totalPotentialDays = dates.filter(d => {
+      const totalPotentialDays = datesToCheck.filter(d => {
         const dayOfWeek = new Date(d).getDay();
         return h.frequency ? h.frequency.includes(dayOfWeek) : true;
       }).length;
 
-      return { 
-        id: h.id, 
-        name: h.name, 
-        color: h.color, 
-        done, 
-        total: totalPotentialDays // This is now your dynamic denominator
+      return {
+        id: h.id,
+        name: h.name,
+        color: h.color,
+        done,
+        total: totalPotentialDays
       };
     });
-}, [habits, records, period]);
+  }, [habits, records, period]);
 
- 
+
 
   return (
     // Main background is deep black
     <div className=" bg-[#0A0A0A] rounded-xl text-gray-100 flex flex-col  w-[30vw] " id="habits">
-      
+
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 h-full">
         {statPerHabit.map((s) => {
@@ -179,7 +181,7 @@ const HabitDashboard:React.FC<HabitDashboardProps>= ({period}) => {
               {
                 data: [completed, remaining],
                 backgroundColor: [doneColor, remainingColor],
-                borderColor: doneColor, 
+                borderColor: doneColor,
                 borderWidth: 1,
                 hoverOffset: 8,
               },
@@ -192,33 +194,33 @@ const HabitDashboard:React.FC<HabitDashboardProps>= ({period}) => {
                 <div className="flex items-center gap-3">
                   <span
                     // Dot uses habit's color for distinction
-                    className="inline-block w-4 h-4 rounded-full border border-gray-700/50" 
+                    className="inline-block w-4 h-4 rounded-full border border-gray-700/50"
                     style={{ background: s.color }}
                   />
                   <span
-                    className="font-bold text-xs text-white" 
+                    className="font-bold text-xs text-white"
                   >
                     {s.name}
                   </span>
-                   
+
                 </div>
                 <div className="text-xs font-bold text-white">
                   {completed}
                   <span className="text-gray-400 font-normal text-xs"> / {s.total}</span>
                 </div>
               </div>
-              
+
               <div className="w-full mx-auto mt-4" style={{ height: "50px" }}>
                 <Pie data={data} options={chartOptions} />
               </div>
               {/* Score display */}
-               
+
             </div>
           );
         })}
       </div>
 
-     
+
     </div>
   );
 };
