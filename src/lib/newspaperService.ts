@@ -22,7 +22,7 @@ export const fetchTheHinduLink = async (): Promise<string | null> => {
         for (const item of Array.from(pdfItems)) {
             const text = item.textContent || "";
             // Check if it contains "The Hindu" but NOT "School"
-            if (text.includes("The Hindu") && !text.includes("School")) {
+            if (text.includes("The Hindu") && !(text.includes("School") || text.includes("UPSC"))) {
                 const link = item.querySelector('a.btn-read');
                 if (link) {
                     targetHref = link.getAttribute('href');
