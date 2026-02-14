@@ -1,47 +1,48 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Search,  Trash2, Tag, PlusCircle, X,  Clapperboard } from 'lucide-react'; 
+import { Search, Trash2, Tag, PlusCircle, X, Clapperboard } from 'lucide-react';
 import supabase from '../lib/supabase';
-import type { WatchlistItem, WatchlistCategoryName, Category, OmdbResult, OmdbSearchResponse } from '../types/watchList'; 
+import type { WatchlistItem, WatchlistCategoryName, Category, OmdbResult, OmdbSearchResponse } from '../types/watchList';
 import CategoryModal from '../models/CategoryModel';
 
 // --- CONFIGURATION ---
-const OMDB_API_KEY = import.meta.env.VITE_OMDB_API_KEY; 
+const OMDB_API_KEY = import.meta.env.VITE_OMDB_API_KEY;
 const BASE_CATEGORY = 'General';
 const DEFAULT_CATEGORIES = [BASE_CATEGORY];
 
 // --- DATA ACCESS FUNCTIONS (defined here for completeness) ---
 
 const fetchCategories = async (): Promise<Category[]> => {
-    const { data } = await supabase.from('watchlist_categories').select('id, name').order('created_at', { ascending: false });
-    
-    const userCategories = (data as Category[] || []).map(c => ({ id: c.id, name: c.name }));
+    const { data } = await supabase.from('watchlist_categories').select('id, name, ranked').order('created_at', { ascending: false });
 
-    const defaultCategoryObjects: Category[] = DEFAULT_CATEGORIES.map(name => ({ 
+    const userCategories = (data as any[] || []).map(c => ({ id: c.id, name: c.name, ranked: c.ranked ?? false }));
+
+    const defaultCategoryObjects: Category[] = DEFAULT_CATEGORIES.map(name => ({
         id: name,
-        name 
+        name,
+        ranked: false
     }));
 
-    const uniqueUserCategories = userCategories.filter(uc => 
+    const uniqueUserCategories = userCategories.filter(uc =>
         !DEFAULT_CATEGORIES.includes(uc.name)
     );
-    
+
     const combinedCategories: Category[] = [
         ...defaultCategoryObjects,
         ...uniqueUserCategories
     ];
-    
+
     return combinedCategories;
 };
 
 const createCategory = async (name: string): Promise<Category | null> => {
     if (name.trim().length === 0) return null;
     const newCategory = { name: name.trim() };
-    const { data, error } = await supabase.from('watchlist_categories').insert([newCategory]).select('id, name').single();
+    const { data, error } = await supabase.from('watchlist_categories').insert([newCategory]).select('id, name, ranked').single();
     if (error) {
         console.error('Error creating category:', error);
         return null;
     }
-    return data as Category;
+    return { ...data, ranked: data.ranked ?? false } as Category;
 };
 
 const searchOmdb = async (query: string): Promise<OmdbResult[]> => {
@@ -50,11 +51,11 @@ const searchOmdb = async (query: string): Promise<OmdbResult[]> => {
     try {
         const response = await fetch(url);
         const data: OmdbSearchResponse = await response.json();
-        
+
         if (data.Response === "True" && data.Search) {
-            return data.Search.filter(item => 
+            return data.Search.filter(item =>
                 (item.Type === 'movie' || item.Type === 'series') && item.Poster !== 'N/A'
-            ).slice(0, 5) as OmdbResult[]; 
+            ).slice(0, 5) as OmdbResult[];
         }
         return [];
     } catch (error) {
@@ -76,14 +77,29 @@ const Watchlist: React.FC = () => {
     const [searchResults, setSearchResults] = useState<OmdbResult[]>([]);
     const [watchlist, setWatchlist] = useState<WatchlistItem[]>([]);
     const [categories, setCategories] = useState<Category[]>([]);
-    const [selectedCategory, setSelectedCategory] = useState<WatchlistCategoryName>(BASE_CATEGORY); 
+    const [selectedCategory, setSelectedCategory] = useState<WatchlistCategoryName>(BASE_CATEGORY);
     const [isLoading, setIsLoading] = useState(false);
-    const [showCategoryModal, setShowCategoryModal] = useState(false); 
+    const [showCategoryModal, setShowCategoryModal] = useState(false);
 
     const filteredWatchlist = useMemo(() => {
-        if (selectedCategory === BASE_CATEGORY) return watchlist;
-        return watchlist.filter(item => item.category === selectedCategory);
-    }, [watchlist, selectedCategory]);
+        let list = watchlist;
+
+        if (selectedCategory !== BASE_CATEGORY) {
+            list = watchlist.filter(item => item.category === selectedCategory);
+        }
+
+        const currentCategory = categories.find(c => c.name === selectedCategory);
+
+        if (currentCategory?.ranked) {
+            return [...list].sort((a, b) => {
+                const rankA = a.rank ?? Infinity;
+                const rankB = b.rank ?? Infinity;
+                return rankA - rankB;
+            });
+        }
+
+        return list;
+    }, [watchlist, selectedCategory, categories]);
 
     const loadData = async () => {
         setIsLoading(true);
@@ -140,7 +156,7 @@ const Watchlist: React.FC = () => {
             id: item.imdbID,
             title: item.Title,
             poster_path: item.Poster !== 'N/A' ? item.Poster : null,
-            media_type: item.Type === 'series' ? 'tv' : (item.Type as 'movie' | 'tv'), 
+            media_type: item.Type === 'series' ? 'tv' : (item.Type as 'movie' | 'tv'),
             category: category,
             created_at: new Date().toISOString(),
         };
@@ -151,12 +167,12 @@ const Watchlist: React.FC = () => {
             console.error('Error adding item:', error);
             return;
         }
-        
+
         setWatchlist(prev => [data as WatchlistItem, ...prev]);
         setSearchTerm('');
         setSearchResults([]);
     };
-    
+
     const handleDelete = async (db_id: string) => {
         const success = await deleteWatchlistItem(db_id);
         if (success) {
@@ -168,7 +184,7 @@ const Watchlist: React.FC = () => {
         <div className="p-6 border border-[#303030] shadow-md rounded-xl text-gray-100 flex flex-col h-[600px]">
             {showCategoryModal && <CategoryModal onClose={() => setShowCategoryModal(false)} onCreate={handleCreateCategoryFromModal} />}
 
-             <h3 className="text-xl font-bold mb-4 flex items-center gap-2 text-white border-b border-[#303030] pb-3">
+            <h3 className="text-xl font-bold mb-4 flex items-center gap-2 text-white border-b border-[#303030] pb-3">
                 <Clapperboard className="w-6 h-6 text-gray-400" /> Movie Watchlist
             </h3>
 
@@ -181,7 +197,7 @@ const Watchlist: React.FC = () => {
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                         // Adjusted padding for icons/buttons
-                        className="w-full bg-[#0A0A0A] border border-[#303030] focus:border-white rounded-lg px-4 py-2 pl-12 pr-12 text-white placeholder-gray-500 transition" 
+                        className="w-full bg-[#0A0A0A] border border-[#303030] focus:border-white rounded-lg px-4 py-2 pl-12 pr-12 text-white placeholder-gray-500 transition"
                     />
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-500" />
 
@@ -196,23 +212,23 @@ const Watchlist: React.FC = () => {
                         </button>
                     )}
                 </div>
-                
+
                 {/* --- SEARCH RESULTS OVERLAY (Absolute position, floating over content below) --- */}
                 {searchResults.length > 0 && (
-                    <div 
+                    <div
                         className="absolute top-full mt-3 left-1/2 -translate-x-1/2 bg-[#1D2330] rounded-lg border border-[#303030] max-h-80 overflow-y-auto z-30 shadow-2xl shadow-black/50"
                         style={{ width: 'calc(100% - 32px)' }} // Matches parent padding width
                     >
                         {searchResults.map(result => (
-                            <div 
-                                key={result.imdbID} 
+                            <div
+                                key={result.imdbID}
                                 className="flex items-center justify-between p-3 border-b border-[#303030] hover:bg-[#303030] transition"
                             >
                                 <div className="flex items-center gap-3">
                                     {result.Poster !== 'N/A' && (
-                                        <img 
-                                            src={result.Poster} 
-                                            alt={result.Title} 
+                                        <img
+                                            src={result.Poster}
+                                            alt={result.Title}
                                             className="w-10 h-auto rounded-sm"
                                         />
                                     )}
@@ -221,10 +237,10 @@ const Watchlist: React.FC = () => {
                                         <p className="text-xs text-gray-400">{result.Type.toUpperCase()}</p>
                                     </div>
                                 </div>
-                                
+
                                 <div className="flex items-center gap-2">
                                     <select
-                                        value={selectedCategory} 
+                                        value={selectedCategory}
                                         onChange={(e) => setSelectedCategory(e.target.value)}
                                         className="bg-[#0A0A0A] border border-[#303030] rounded-lg px-2 py-1 text-sm text-gray-300"
                                     >
@@ -249,7 +265,7 @@ const Watchlist: React.FC = () => {
             <div className="flex justify-between items-center mb-4 border-b border-[#303030] pb-2">
                 <div className="flex items-center gap-3">
                     <h4 className="text-xl font-bold text-white">My List ({filteredWatchlist.length})</h4>
-                    
+
                     {/* Filter Dropdown */}
                     <select
                         value={selectedCategory}
@@ -262,42 +278,42 @@ const Watchlist: React.FC = () => {
                         ))}
                     </select>
                 </div>
-                
+
                 {/* Create Category Button */}
-                <button 
+                <button
                     onClick={() => setShowCategoryModal(true)}
                     className="px-3 py-1 rounded-lg bg-[#1D2330] text-gray-300 hover:bg-[#303030] transition border border-[#303030] flex items-center gap-1 text-sm"
                 >
                     <PlusCircle className="w-4 h-4" /> Category
                 </button>
             </div>
-            
+
             {/* --- WATCHLIST ITEMS --- */}
             {isLoading && <p className="text-gray-400">Loading watchlist...</p>}
-            
-           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 flex-grow overflow-y-auto items-start pr-4">
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 flex-grow overflow-y-auto items-start pr-4">
                 {filteredWatchlist.map(item => (
-                   <div 
-            key={item.db_id} 
-            className="flex items-start p-4 bg-[#121212] rounded-xl h-[120px] border border-[#303030] shadow-md transition-all hover:border-white/50"
-        >
+                    <div
+                        key={item.db_id}
+                        className="flex items-start p-4 bg-[#121212] rounded-xl h-[120px] border border-[#303030] shadow-md transition-all hover:border-white/50"
+                    >
                         {item.poster_path && (
-                            <img 
-                                src={item.poster_path} 
-                                alt={item.title} 
+                            <img
+                                src={item.poster_path}
+                                alt={item.title}
                                 className="w-16 h-auto rounded-md mr-4 flex-shrink-0"
                             />
                         )}
                         <div className="flex-grow">
                             <p className="text-lg font-bold text-white mb-1">{item.title}</p>
                             <p className="text-xs text-gray-500 mb-2">{item.media_type.toUpperCase()}</p>
-                            
+
                             <div className="flex items-center gap-2 mb-2">
                                 <Tag className="w-4 h-4 text-gray-400" />
                                 <span className="text-sm font-medium text-gray-300">{item.category}</span>
                             </div>
                         </div>
-                        
+
                         <button
                             onClick={() => handleDelete(item.db_id)}
                             className="text-gray-600 hover:text-red-500 p-1 rounded-full transition ml-4"
@@ -309,7 +325,7 @@ const Watchlist: React.FC = () => {
                 ))}
                 <div className="md:col-span-3 text-transparent h-0">.</div>
             </div>
-            
+
             {filteredWatchlist.length === 0 && !isLoading && (
                 <p className="text-gray-400 mt-4">Your watchlist is empty. Start searching above!</p>
             )}
