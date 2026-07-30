@@ -11,6 +11,7 @@ import {
   LogOut,
   Newspaper,
   Terminal,
+  Wallet,
 } from "lucide-react";
 
 // 💡 NEW: Import the Supabase client (adjust the path if needed)
@@ -35,6 +36,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: "breaks", title: "Breaks", icon: Clock },
   { id: "music", title: "Music", icon: Music },
   { id: "habits", title: "Habits", icon: CheckSquare },
+  { id: "transactions", title: "Transactions", icon: Wallet },
   { id: "journal", title: "Journal", icon: BookOpen },
   { id: "movies", title: "Movies", icon: Clapperboard },
   { id: "newspaper", title: "Newspaper", icon: Newspaper },

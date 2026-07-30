@@ -14,17 +14,18 @@ export default function AuthForm() {
     >
       <Auth
         // 1. Pass the pre-initialized Supabase client
-        supabaseClient={supabase} 
-        
-        // 2. 💡 FIX: REMOVE the providers prop entirely 
-        //    (or set providers={[]}) to show email/password/magic link.
-        // providers={['email']} <--- REMOVE THIS LINE
-        
-        // 3. Define the appearance/theme
+        supabaseClient={supabase}
+
+        // 2. No OAuth providers are configured, so don't render their buttons
+        providers={[]}
+
+        // 3. Define the appearance/theme (dark variant so input text is visible
+        //    against this app's black background)
         appearance={{ theme: ThemeSupa }}
-        
-        // 4. Set the initial view 
-        view="sign_in" 
+        theme="dark"
+
+        // 4. Set the initial view
+        view="sign_in"
         
         // 5. Localization (optional)
         localization={{

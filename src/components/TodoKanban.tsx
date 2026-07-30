@@ -278,8 +278,8 @@ const TodoKanban: React.FC = () => {
       ) : (
 
         <DragDropContext onDragEnd={onDragEnd} >
-            <div className="flex gap-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="flex flex-col lg:flex-row gap-4 items-start">
+          <div className="flex flex-col sm:flex-row gap-4 flex-1 min-w-0">
             {["TODO", "IN_PROGRESS", "DONE"].map((columnId: string) => {
               const column = columns[columnId as TodoStatus];
               const tasksInColumn = column.taskIds.map(
@@ -292,8 +292,8 @@ const TodoKanban: React.FC = () => {
                     <div
             ref={provided.innerRef}
             {...provided.droppableProps}
-            // 1. UPDATE: Set column to flex container (flex-col) and set a definite height/max-height
-            className="bg-[#121212] rounded-xl p-2 border border-[#303030] shadow-xl h-[500px] w-[300px] flex flex-col" 
+            // Equal-width, flexible column (never fights the flex track like a fixed width did)
+            className="bg-[#121212] rounded-xl p-2 border border-[#303030] shadow-xl h-[500px] flex-1 min-w-60 flex flex-col"
         >
                       <h4 className="text-md font-bold mb-4 border-b border-[#303030] pb-2 text-white flex-shrink-0">
                         {column.title}{" "}
@@ -356,10 +356,12 @@ const TodoKanban: React.FC = () => {
                 </Droppable>
               );
             })}
-           
+
           </div>
-           <WeeklyTaskDistribution />
-           </div>
+          <div className="w-full lg:w-85 shrink-0">
+            <WeeklyTaskDistribution />
+          </div>
+        </div>
         </DragDropContext>
       )}
     </div>

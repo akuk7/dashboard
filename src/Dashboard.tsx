@@ -10,6 +10,7 @@ import TodoKanban from "./components/TodoKanban";
 import NavBar from "./components/Navbar";
 import HeroSection from "./components/HeroSection";
 import Habits from "./components/Habits";
+import Transactions from "./components/Transactions";
 import { useState, useEffect } from "react";
 import { fetchTheHinduLink } from "./lib/newspaperService";
 import { fetchLeetCodeDailyLink } from "./lib/leetcodeService";
@@ -68,6 +69,7 @@ function Dashboard() {
         </div>
       </div>
       <Habits />
+      <Transactions />
       <div className="flex w-[85vw] justify-start mt-10 gap-6">
         <DigitalJournal />
         <Watchlist />
