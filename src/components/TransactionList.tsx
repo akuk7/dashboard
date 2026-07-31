@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react'
-import { Trash2, Edit, ArrowLeftRight } from 'lucide-react'
+import { Trash2, Edit, ArrowLeftRight, HandCoins } from 'lucide-react'
 import type { Transaction, TransactionAccount, TransactionCategory, TransactionType } from '../types/transaction'
+import type { LoanInfo } from '../lib/loans'
 
 type TypeFilter = 'non_transfer' | 'all' | TransactionType
 
@@ -8,17 +9,33 @@ type Props = {
   transactions: Transaction[]
   accounts: TransactionAccount[]
   categories: TransactionCategory[]
+  lendOutLoans: LoanInfo[]
+  lendInLoans: LoanInfo[]
   onEdit: (transaction: Transaction) => void
   onDelete: (id: string) => void
+  onRepay: (loan: Transaction) => void
 }
 
 const typeBadge = (type: TransactionType) => {
   if (type === 'credit') return { label: 'Credit', color: 'text-green-400 border-green-400/30 bg-green-400/10' }
   if (type === 'debit') return { label: 'Debit', color: 'text-red-400 border-red-400/30 bg-red-400/10' }
+  if (type === 'lend_out') return { label: 'Lent Out', color: 'text-amber-400 border-amber-400/30 bg-amber-400/10' }
+  if (type === 'lend_in') return { label: 'Lent In', color: 'text-cyan-400 border-cyan-400/30 bg-cyan-400/10' }
+  if (type === 'repayment_received') return { label: 'Repayment Received', color: 'text-green-400 border-green-400/30 bg-green-400/10' }
+  if (type === 'repayment_made') return { label: 'Repayment Made', color: 'text-red-400 border-red-400/30 bg-red-400/10' }
   return { label: 'Transfer', color: 'text-blue-400 border-blue-400/30 bg-blue-400/10' }
 }
 
-const TransactionList: React.FC<Props> = ({ transactions, accounts, categories, onEdit, onDelete }) => {
+const AMOUNT_SIGN: Partial<Record<TransactionType, '-' | '+'>> = {
+  debit: '-',
+  lend_out: '-',
+  repayment_made: '-',
+  credit: '+',
+  lend_in: '+',
+  repayment_received: '+',
+}
+
+const TransactionList: React.FC<Props> = ({ transactions, accounts, categories, lendOutLoans, lendInLoans, onEdit, onDelete, onRepay }) => {
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('non_transfer')
   const [accountFilter, setAccountFilter] = useState('all')
   const [categoryFilter, setCategoryFilter] = useState('all')
@@ -36,6 +53,12 @@ const TransactionList: React.FC<Props> = ({ transactions, accounts, categories, 
     categories.forEach(c => { map[c.id] = c.name })
     return map
   }, [categories])
+
+  const outstandingByLoanId = useMemo(() => {
+    const map: Record<string, number> = {}
+    ;[...lendOutLoans, ...lendInLoans].forEach(l => { map[l.transaction.id] = l.outstanding })
+    return map
+  }, [lendOutLoans, lendInLoans])
 
   const filtered = useMemo(() => {
     return transactions.filter(t => {
@@ -60,10 +83,14 @@ const TransactionList: React.FC<Props> = ({ transactions, accounts, categories, 
             onChange={(e) => setTypeFilter(e.target.value as TypeFilter)}
             className="bg-[#0A0A0A] border border-[#303030] rounded-lg px-3 py-1 text-sm text-gray-300"
           >
-            <option value="non_transfer">Debit &amp; Credit</option>
+            <option value="non_transfer">Exclude Transfers</option>
             <option value="all">All Types</option>
             <option value="debit">Debit Only</option>
             <option value="credit">Credit Only</option>
+            <option value="lend_out">Lent Out Only</option>
+            <option value="lend_in">Lent In Only</option>
+            <option value="repayment_received">Repayments Received</option>
+            <option value="repayment_made">Repayments Made</option>
             <option value="internal_transfer">Transfers Only</option>
           </select>
 
@@ -106,7 +133,7 @@ const TransactionList: React.FC<Props> = ({ transactions, accounts, categories, 
           return (
             <div
               key={t.id}
-              className="flex items-center justify-between p-3 bg-[#121212] rounded-lg border border-[#303030] hover:border-white/50 transition"
+              className="flex items-center justify-between p-3 bg-[#121212] rounded-lg border border-[#303030] transition"
             >
               <div className="flex items-center gap-3 min-w-0">
                 {t.type === 'internal_transfer' && <ArrowLeftRight className="w-4 h-4 text-blue-400 flex-shrink-0" />}
@@ -118,6 +145,10 @@ const TransactionList: React.FC<Props> = ({ transactions, accounts, categories, 
                       ? ` → ${accountsById[t.to_account_id] ?? 'Unknown'}`
                       : ''}
                     {t.category_id ? ` · ${categoriesById[t.category_id] ?? ''}` : ''}
+                    {!t.affects_balance ? ' · Pre-existing' : ''}
+                    {(t.type === 'lend_out' || t.type === 'lend_in') && outstandingByLoanId[t.id] !== undefined
+                      ? ` · ${outstandingByLoanId[t.id].toFixed(2)} outstanding`
+                      : ''}
                   </p>
                 </div>
               </div>
@@ -127,8 +158,17 @@ const TransactionList: React.FC<Props> = ({ transactions, accounts, categories, 
                   {badge.label}
                 </span>
                 <span className="text-sm font-bold text-white w-24 text-right">
-                  {t.type === 'debit' ? '-' : t.type === 'credit' ? '+' : ''}{t.amount.toFixed(2)}
+                  {AMOUNT_SIGN[t.type] ?? ''}{t.amount.toFixed(2)}
                 </span>
+                {(t.type === 'lend_out' || t.type === 'lend_in') && (outstandingByLoanId[t.id] ?? 0) > 0.001 && (
+                  <button
+                    onClick={() => onRepay(t)}
+                    className="text-gray-600 hover:text-green-400 p-1 rounded-full transition"
+                    title="Record repayment"
+                  >
+                    <HandCoins className="w-4 h-4" />
+                  </button>
+                )}
                 <button
                   onClick={() => onEdit(t)}
                   className="text-gray-600 hover:text-white p-1 rounded-full transition"

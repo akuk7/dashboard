@@ -1,8 +1,9 @@
-import React, { useMemo } from 'react'
+import React, { useMemo, useState } from 'react'
 import { Pie } from 'react-chartjs-2'
 import { Chart as ChartJS, ArcElement, Tooltip, Legend, Title } from 'chart.js'
 import type { TooltipItem } from 'chart.js'
 import type { Transaction, TransactionAccount, TransactionCategory } from '../types/transaction'
+import type { LoanInfo } from '../lib/loans'
 
 ChartJS.register(ArcElement, Tooltip, Legend, Title)
 
@@ -35,15 +36,20 @@ type Props = {
   transactions: Transaction[]
   accounts: TransactionAccount[]
   categories: TransactionCategory[]
+  lendOutLoans: LoanInfo[]
+  lendInLoans: LoanInfo[]
 }
 
-const TransactionDashboard: React.FC<Props> = ({ transactions, accounts, categories }) => {
+const TransactionDashboard: React.FC<Props> = ({ transactions, accounts, categories, lendOutLoans, lendInLoans }) => {
+  const [summaryStartDate, setSummaryStartDate] = useState(`${new Date().getFullYear()}-08-01`)
+
   const balances = useMemo(() => {
     const map: Record<string, number> = {}
     accounts.forEach(a => { map[a.id] = a.opening_balance })
     transactions.forEach(t => {
-      if (t.type === 'credit') map[t.account_id] = (map[t.account_id] ?? 0) + t.amount
-      else if (t.type === 'debit') map[t.account_id] = (map[t.account_id] ?? 0) - t.amount
+      if (!t.affects_balance) return
+      if (t.type === 'credit' || t.type === 'lend_in' || t.type === 'repayment_received') map[t.account_id] = (map[t.account_id] ?? 0) + t.amount
+      else if (t.type === 'debit' || t.type === 'lend_out' || t.type === 'repayment_made') map[t.account_id] = (map[t.account_id] ?? 0) - t.amount
       else if (t.type === 'internal_transfer') {
         map[t.account_id] = (map[t.account_id] ?? 0) - t.amount
         if (t.to_account_id) map[t.to_account_id] = (map[t.to_account_id] ?? 0) + t.amount
@@ -52,19 +58,38 @@ const TransactionDashboard: React.FC<Props> = ({ transactions, accounts, categor
     return map
   }, [accounts, transactions])
 
+  // Raw cash across all accounts - lend_out/lend_in move real cash just like debit/credit,
+  // so this figure doesn't distinguish loans from ordinary spending/income.
   const netBalance = useMemo(() => {
     return accounts.reduce((sum, a) => sum + (balances[a.id] ?? a.opening_balance), 0)
   }, [accounts, balances])
+
+  // Outstanding = original loan amount minus repayments received/made against it so far.
+  const loanTotals = useMemo(() => {
+    const lentOut = lendOutLoans.reduce((sum, l) => sum + Math.max(0, l.outstanding), 0)
+    const lentIn = lendInLoans.reduce((sum, l) => sum + Math.max(0, l.outstanding), 0)
+    return { lentOut, lentIn }
+  }, [lendOutLoans, lendInLoans])
+
+  // Net Balance adjusted for outstanding loans: money still lent out is still yours (add back),
+  // money still borrowed isn't really yours (subtract).
+  const netWorth = useMemo(() => {
+    return netBalance + loanTotals.lentOut - loanTotals.lentIn
+  }, [netBalance, loanTotals])
+
+  // Positive: net amount you're owed (lent out more than borrowed). Negative: net amount you owe.
+  const netLent = loanTotals.lentOut - loanTotals.lentIn
 
   const summary = useMemo(() => {
     let income = 0
     let expense = 0
     transactions.forEach(t => {
+      if (t.transaction_date < summaryStartDate) return
       if (t.type === 'credit') income += t.amount
       else if (t.type === 'debit') expense += t.amount
     })
     return { income, expense, net: income - expense }
-  }, [transactions])
+  }, [transactions, summaryStartDate])
 
   const categoryChart = useMemo(() => {
     const totals: Record<string, number> = {}
@@ -97,33 +122,63 @@ const TransactionDashboard: React.FC<Props> = ({ transactions, accounts, categor
 
   return (
     <div className="flex flex-col md:flex-row gap-4 mt-6">
-      <div className="flex-1 grid grid-cols-2 sm:grid-cols-3 gap-3">
-        <div className="p-4 bg-[#121212] rounded-xl border border-white/40">
-          <p className="text-xs text-gray-500 mb-1">Net Balance</p>
-          <p className={`text-lg font-bold ${netBalance >= 0 ? 'text-white' : 'text-red-400'}`}>{netBalance.toFixed(2)}</p>
-        </div>
-
-        <div className="p-4 bg-[#121212] rounded-xl border border-[#303030]">
-          <p className="text-xs text-gray-500 mb-1">Income</p>
-          <p className="text-lg font-bold text-green-400">{summary.income.toFixed(2)}</p>
-        </div>
-        <div className="p-4 bg-[#121212] rounded-xl border border-[#303030]">
-          <p className="text-xs text-gray-500 mb-1">Expense</p>
-          <p className="text-lg font-bold text-red-400">{summary.expense.toFixed(2)}</p>
-        </div>
-        <div className="p-4 bg-[#121212] rounded-xl border border-[#303030]">
-          <p className="text-xs text-gray-500 mb-1">Net</p>
-          <p className={`text-lg font-bold ${summary.net >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-            {summary.net.toFixed(2)}
-          </p>
-        </div>
-
-        {accounts.map(a => (
-          <div key={a.id} className="p-4 bg-[#121212] rounded-xl border border-[#303030]">
-            <p className="text-xs text-gray-500 mb-1 truncate">{a.name}</p>
-            <p className="text-lg font-bold text-white">{(balances[a.id] ?? a.opening_balance).toFixed(2)}</p>
+      <div className="flex-1 flex flex-col gap-4">
+        {/* Row 1: headline totals */}
+        <div className="grid grid-cols-3 gap-3">
+          <div className="p-4 bg-[#121212] rounded-xl border border-white/40" title="Raw cash across all accounts, treating lend_out/lend_in as ordinary cash movements">
+            <p className="text-xs text-gray-500 mb-1">Net Balance</p>
+            <p className={`text-lg font-bold ${netBalance >= 0 ? 'text-white' : 'text-red-400'}`}>{netBalance.toFixed(2)}</p>
           </div>
-        ))}
+
+          <div className="p-4 bg-[#121212] rounded-xl border border-[#303030]" title="Net lending position: money you've lent out minus money you've borrowed. Positive means you're owed money overall; negative means you owe money overall.">
+            <p className="text-xs text-gray-500 mb-1">Lent</p>
+            <p className={`text-lg font-bold ${netLent >= 0 ? 'text-amber-400' : 'text-cyan-400'}`}>{netLent.toFixed(2)}</p>
+          </div>
+
+          <div className="p-4 bg-[#121212] rounded-xl border border-white/40" title="Net Balance plus money lent out (still owed to you) minus money borrowed (still owed by you)">
+            <p className="text-xs text-gray-500 mb-1">Net Worth</p>
+            <p className={`text-lg font-bold ${netWorth >= 0 ? 'text-white' : 'text-red-400'}`}>{netWorth.toFixed(2)}</p>
+          </div>
+        </div>
+
+        {/* Row 2: per-account balances */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          {accounts.map(a => (
+            <div key={a.id} className="p-4 bg-[#121212] rounded-xl border border-[#303030]">
+              <p className="text-xs text-gray-500 mb-1 truncate">{a.name}</p>
+              <p className="text-lg font-bold text-white">{(balances[a.id] ?? a.opening_balance).toFixed(2)}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* Row 3: cash flow over a selectable period */}
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs text-gray-500">Cash flow since</p>
+            <input
+              type="date"
+              value={summaryStartDate}
+              onChange={(e) => setSummaryStartDate(e.target.value)}
+              className="bg-[#0A0A0A] border border-[#303030] rounded-lg px-2 py-1 text-xs text-gray-300"
+            />
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <div className="p-4 bg-[#121212] rounded-xl border border-[#303030]">
+              <p className="text-xs text-gray-500 mb-1">Income</p>
+              <p className="text-lg font-bold text-green-400">{summary.income.toFixed(2)}</p>
+            </div>
+            <div className="p-4 bg-[#121212] rounded-xl border border-[#303030]">
+              <p className="text-xs text-gray-500 mb-1">Expense</p>
+              <p className="text-lg font-bold text-red-400">{summary.expense.toFixed(2)}</p>
+            </div>
+            <div className="p-4 bg-[#121212] rounded-xl border border-[#303030]">
+              <p className="text-xs text-gray-500 mb-1">Net</p>
+              <p className={`text-lg font-bold ${summary.net >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                {summary.net.toFixed(2)}
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div className="w-full md:w-[280px] p-4 bg-[#121212] rounded-xl border border-[#303030]">

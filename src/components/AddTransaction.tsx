@@ -2,16 +2,20 @@ import React, { useEffect, useState } from 'react'
 import { X, PlusCircle, Save } from 'lucide-react'
 import supabase from '../lib/supabase'
 import type { Transaction, TransactionAccount, TransactionCategory, TransactionType } from '../types/transaction'
+import type { LoanInfo } from '../lib/loans'
 
 type Props = {
   transaction: Transaction | null // null for new, populated for editing
+  prefill?: Partial<Transaction> // only applied when transaction is null (e.g. "Repay" quick action)
   accounts: TransactionAccount[]
   categories: TransactionCategory[]
+  lendOutLoans: LoanInfo[]
+  lendInLoans: LoanInfo[]
   onClose: () => void
   onSave: (transaction: Transaction) => void
 }
 
-const AddTransaction: React.FC<Props> = ({ transaction, accounts, categories, onClose, onSave }) => {
+const AddTransaction: React.FC<Props> = ({ transaction, prefill, accounts, categories, lendOutLoans, lendInLoans, onClose, onSave }) => {
   const isEditing = transaction !== null
 
   const [description, setDescription] = useState('')
@@ -21,6 +25,8 @@ const AddTransaction: React.FC<Props> = ({ transaction, accounts, categories, on
   const [toAccountId, setToAccountId] = useState('')
   const [categoryId, setCategoryId] = useState('')
   const [transactionDate, setTransactionDate] = useState(new Date().toISOString().split('T')[0])
+  const [preExisting, setPreExisting] = useState(false)
+  const [repaysTransactionId, setRepaysTransactionId] = useState('')
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -32,22 +38,40 @@ const AddTransaction: React.FC<Props> = ({ transaction, accounts, categories, on
       setToAccountId(transaction.to_account_id ?? '')
       setCategoryId(transaction.category_id ?? '')
       setTransactionDate(transaction.transaction_date)
+      setPreExisting(transaction.affects_balance === false)
+      setRepaysTransactionId(transaction.repays_transaction_id ?? '')
     } else {
-      setDescription('')
-      setAmount('')
-      setType('debit')
-      setAccountId(accounts[0]?.id ?? '')
+      setDescription(prefill?.description ?? '')
+      setAmount(prefill?.amount !== undefined ? String(prefill.amount) : '')
+      setType(prefill?.type ?? 'debit')
+      setAccountId(prefill?.account_id ?? accounts[0]?.id ?? '')
       setToAccountId('')
       setCategoryId('')
       setTransactionDate(new Date().toISOString().split('T')[0])
+      setPreExisting(false)
+      setRepaysTransactionId(prefill?.repays_transaction_id ?? '')
     }
-  }, [transaction, accounts])
+  }, [transaction, prefill, accounts])
 
   const isTransfer = type === 'internal_transfer'
+  const isLend = type === 'lend_out' || type === 'lend_in'
+  const isRepayment = type === 'repayment_received' || type === 'repayment_made'
+  const repaymentLoans = type === 'repayment_received' ? lendOutLoans : lendInLoans
 
   const handleTypeChange = (nextType: TransactionType) => {
     setType(nextType)
     if (nextType !== 'internal_transfer') setToAccountId('')
+    if (nextType !== 'lend_out' && nextType !== 'lend_in') setPreExisting(false)
+    if (nextType !== 'repayment_received' && nextType !== 'repayment_made') setRepaysTransactionId('')
+  }
+
+  const handleLoanPicked = (loanId: string) => {
+    setRepaysTransactionId(loanId)
+    const loan = repaymentLoans.find(l => l.transaction.id === loanId)
+    if (loan) {
+      setAccountId(loan.transaction.account_id)
+      setAmount(String(Math.max(0, loan.outstanding)))
+    }
   }
 
   const handleSave = async () => {
@@ -60,6 +84,10 @@ const AddTransaction: React.FC<Props> = ({ transaction, accounts, categories, on
       setError('Pick a different destination account for the transfer.')
       return
     }
+    if (isRepayment && !repaysTransactionId) {
+      setError('Pick which loan this repayment is for.')
+      return
+    }
 
     const payload = {
       description: description.trim(),
@@ -67,8 +95,10 @@ const AddTransaction: React.FC<Props> = ({ transaction, accounts, categories, on
       type,
       account_id: accountId,
       to_account_id: isTransfer ? toAccountId : null,
-      category_id: isTransfer ? null : (categoryId || null),
+      category_id: (isTransfer || isRepayment) ? null : (categoryId || null),
       transaction_date: transactionDate,
+      affects_balance: isLend ? !preExisting : true,
+      repays_transaction_id: isRepayment ? repaysTransactionId : null,
     }
 
     const { data, error: saveError } = isEditing
@@ -127,6 +157,10 @@ const AddTransaction: React.FC<Props> = ({ transaction, accounts, categories, on
             >
               <option value="debit">Debit</option>
               <option value="credit">Credit</option>
+              <option value="lend_out">Lend Out</option>
+              <option value="lend_in">Lend In</option>
+              <option value="repayment_received">Repayment Received</option>
+              <option value="repayment_made">Repayment Made</option>
               <option value="internal_transfer">Internal Transfer</option>
             </select>
           </div>
@@ -159,6 +193,24 @@ const AddTransaction: React.FC<Props> = ({ transaction, accounts, categories, on
                 {accounts.filter(a => a.id !== accountId).map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
               </select>
             </div>
+          ) : isRepayment ? (
+            <div>
+              <label className="block mb-2 text-sm font-medium text-gray-300">Which Loan?</label>
+              <select
+                value={repaysTransactionId}
+                onChange={(e) => handleLoanPicked(e.target.value)}
+                className="w-full bg-[#0A0A0A] border border-[#303030] focus:border-white rounded-lg px-4 py-3 text-white outline-none"
+              >
+                <option value="" disabled>Select loan</option>
+                {repaymentLoans
+                  .filter(l => l.outstanding > 0.001 || l.transaction.id === repaysTransactionId)
+                  .map(l => (
+                    <option key={l.transaction.id} value={l.transaction.id}>
+                      {l.transaction.description} - {l.outstanding.toFixed(2)} owed
+                    </option>
+                  ))}
+              </select>
+            </div>
           ) : (
             <div>
               <label className="block mb-2 text-sm font-medium text-gray-300">Category</label>
@@ -183,6 +235,19 @@ const AddTransaction: React.FC<Props> = ({ transaction, accounts, categories, on
             className="bg-[#0A0A0A] border border-[#303030] text-gray-100 rounded-lg px-3 py-1 text-sm focus:border-white outline-none"
           />
         </div>
+
+        {isLend && (
+          <label className="flex items-start gap-2 mb-4 text-sm text-gray-300 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={preExisting}
+              onChange={(e) => setPreExisting(e.target.checked)}
+              className="mt-0.5"
+            />
+            This was already {type === 'lend_out' ? 'lent out' : 'borrowed'} before I started tracking
+            (won&apos;t affect account balance, only Lent / Net Worth)
+          </label>
+        )}
 
         {error && <p className="text-red-400 text-sm mb-4">{error}</p>}
 

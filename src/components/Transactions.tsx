@@ -1,12 +1,18 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { PlusCircle, Wallet } from 'lucide-react'
 import supabase from '../lib/supabase'
-import type { Transaction, TransactionAccount, TransactionCategory } from '../types/transaction'
+import type { Transaction, TransactionAccount, TransactionCategory, TransactionType } from '../types/transaction'
+import { getLoansWithOutstanding } from '../lib/loans'
 import AddTransaction from './AddTransaction'
 import AccountModal from '../models/AccountModel'
 import TransactionCategoryModal from '../models/TransactionCategoryModel'
 import TransactionDashboard from './TransactionDashboard'
 import TransactionList from './TransactionList'
+
+type EditorState =
+  | { mode: 'closed' }
+  | { mode: 'create'; prefill?: Partial<Transaction> }
+  | { mode: 'edit'; transaction: Transaction }
 
 const Transactions: React.FC = () => {
   const [accounts, setAccounts] = useState<TransactionAccount[]>([])
@@ -14,9 +20,12 @@ const Transactions: React.FC = () => {
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
-  const [transactionEditor, setTransactionEditor] = useState<Transaction | 'NEW' | null>(null)
+  const [editorState, setEditorState] = useState<EditorState>({ mode: 'closed' })
   const [showAddAccount, setShowAddAccount] = useState(false)
   const [showAddCategory, setShowAddCategory] = useState(false)
+
+  const lendOutLoans = useMemo(() => getLoansWithOutstanding(transactions, 'lend_out'), [transactions])
+  const lendInLoans = useMemo(() => getLoansWithOutstanding(transactions, 'lend_in'), [transactions])
 
   const loadData = async () => {
     setIsLoading(true)
@@ -41,7 +50,7 @@ const Transactions: React.FC = () => {
       if (exists) return prev.map(t => (t.id === transaction.id ? transaction : t))
       return [transaction, ...prev]
     })
-    setTransactionEditor(null)
+    setEditorState({ mode: 'closed' })
   }
 
   const handleCreateAccount = async (name: string, openingBalance: number) => {
@@ -87,6 +96,23 @@ const Transactions: React.FC = () => {
     setTransactions(prev => prev.filter(t => t.id !== id))
   }
 
+  const handleRepay = (loan: Transaction) => {
+    const repaymentType: TransactionType = loan.type === 'lend_out' ? 'repayment_received' : 'repayment_made'
+    const loans = loan.type === 'lend_out' ? lendOutLoans : lendInLoans
+    const outstanding = loans.find(l => l.transaction.id === loan.id)?.outstanding ?? loan.amount
+
+    setEditorState({
+      mode: 'create',
+      prefill: {
+        type: repaymentType,
+        account_id: loan.account_id,
+        amount: Math.max(0, outstanding),
+        description: `Repayment: ${loan.description}`,
+        repays_transaction_id: loan.id,
+      },
+    })
+  }
+
   return (
     <div className="w-[85vw] mt-10">
       <div className="flex justify-between items-center mb-4 border-b border-[#303030] pb-2">
@@ -107,7 +133,7 @@ const Transactions: React.FC = () => {
             + Category
           </button>
           <button
-            onClick={() => setTransactionEditor('NEW')}
+            onClick={() => setEditorState({ mode: 'create' })}
             className="inline-flex items-center gap-2 px-4 py-2 bg-white text-black rounded-lg font-medium"
           >
             <PlusCircle size={18} /> Add Transaction
@@ -117,21 +143,33 @@ const Transactions: React.FC = () => {
 
       {isLoading && <p className="text-gray-400">Loading transactions...</p>}
 
-      <TransactionDashboard transactions={transactions} accounts={accounts} categories={categories} />
+      <TransactionDashboard
+        transactions={transactions}
+        accounts={accounts}
+        categories={categories}
+        lendOutLoans={lendOutLoans}
+        lendInLoans={lendInLoans}
+      />
       <TransactionList
         transactions={transactions}
         accounts={accounts}
         categories={categories}
-        onEdit={(t) => setTransactionEditor(t)}
+        lendOutLoans={lendOutLoans}
+        lendInLoans={lendInLoans}
+        onEdit={(t) => setEditorState({ mode: 'edit', transaction: t })}
         onDelete={handleDeleteTransaction}
+        onRepay={handleRepay}
       />
 
-      {transactionEditor && (
+      {editorState.mode !== 'closed' && (
         <AddTransaction
-          transaction={transactionEditor === 'NEW' ? null : transactionEditor}
+          transaction={editorState.mode === 'edit' ? editorState.transaction : null}
+          prefill={editorState.mode === 'create' ? editorState.prefill : undefined}
           accounts={accounts}
           categories={categories}
-          onClose={() => setTransactionEditor(null)}
+          lendOutLoans={lendOutLoans}
+          lendInLoans={lendInLoans}
+          onClose={() => setEditorState({ mode: 'closed' })}
           onSave={handleTransactionSaved}
         />
       )}
