@@ -1,24 +1,47 @@
-import React, { useState } from 'react'
-import { X, PlusCircle } from 'lucide-react'
+import React, { useEffect, useState } from 'react'
+import { X, PlusCircle, Save } from 'lucide-react'
 import supabase from '../lib/supabase'
 import type { Transaction, TransactionAccount, TransactionCategory, TransactionType } from '../types/transaction'
 
 type Props = {
+  transaction: Transaction | null // null for new, populated for editing
   accounts: TransactionAccount[]
   categories: TransactionCategory[]
   onClose: () => void
-  onAdd: (transaction: Transaction) => void
+  onSave: (transaction: Transaction) => void
 }
 
-const AddTransaction: React.FC<Props> = ({ accounts, categories, onClose, onAdd }) => {
+const AddTransaction: React.FC<Props> = ({ transaction, accounts, categories, onClose, onSave }) => {
+  const isEditing = transaction !== null
+
   const [description, setDescription] = useState('')
   const [amount, setAmount] = useState('')
   const [type, setType] = useState<TransactionType>('debit')
-  const [accountId, setAccountId] = useState(accounts[0]?.id ?? '')
+  const [accountId, setAccountId] = useState('')
   const [toAccountId, setToAccountId] = useState('')
   const [categoryId, setCategoryId] = useState('')
   const [transactionDate, setTransactionDate] = useState(new Date().toISOString().split('T')[0])
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (transaction) {
+      setDescription(transaction.description)
+      setAmount(String(transaction.amount))
+      setType(transaction.type)
+      setAccountId(transaction.account_id)
+      setToAccountId(transaction.to_account_id ?? '')
+      setCategoryId(transaction.category_id ?? '')
+      setTransactionDate(transaction.transaction_date)
+    } else {
+      setDescription('')
+      setAmount('')
+      setType('debit')
+      setAccountId(accounts[0]?.id ?? '')
+      setToAccountId('')
+      setCategoryId('')
+      setTransactionDate(new Date().toISOString().split('T')[0])
+    }
+  }, [transaction, accounts])
 
   const isTransfer = type === 'internal_transfer'
 
@@ -27,7 +50,7 @@ const AddTransaction: React.FC<Props> = ({ accounts, categories, onClose, onAdd 
     if (nextType !== 'internal_transfer') setToAccountId('')
   }
 
-  const handleAdd = async () => {
+  const handleSave = async () => {
     const parsedAmount = Number(amount)
     if (!description.trim() || !accountId || !parsedAmount || parsedAmount <= 0) {
       setError('Description, amount and account are required.')
@@ -38,8 +61,7 @@ const AddTransaction: React.FC<Props> = ({ accounts, categories, onClose, onAdd 
       return
     }
 
-    const newTransaction = {
-      id: crypto.randomUUID(),
+    const payload = {
       description: description.trim(),
       amount: parsedAmount,
       type,
@@ -49,19 +71,17 @@ const AddTransaction: React.FC<Props> = ({ accounts, categories, onClose, onAdd 
       transaction_date: transactionDate,
     }
 
-    const { data, error: insertError } = await supabase
-      .from('transactions')
-      .insert([newTransaction])
-      .select('*')
-      .single()
+    const { data, error: saveError } = isEditing
+      ? await supabase.from('transactions').update(payload).match({ id: transaction!.id }).select('*').single()
+      : await supabase.from('transactions').insert([{ id: crypto.randomUUID(), ...payload }]).select('*').single()
 
-    if (insertError) {
-      console.error('Error adding transaction:', insertError)
+    if (saveError) {
+      console.error('Error saving transaction:', saveError)
       setError('Could not save transaction.')
       return
     }
 
-    onAdd(data as Transaction)
+    onSave(data as Transaction)
     onClose()
   }
 
@@ -70,7 +90,7 @@ const AddTransaction: React.FC<Props> = ({ accounts, categories, onClose, onAdd 
       <div className="bg-[#121212] text-gray-100 rounded-xl w-full max-w-lg p-6 border border-[#303030] shadow-2xl">
         <div className="flex justify-between items-center mb-6">
           <h3 className="text-xl font-bold flex items-center gap-3 text-white">
-            <PlusCircle className="w-5 h-5 text-gray-400" /> New Transaction
+            <PlusCircle className="w-5 h-5 text-gray-400" /> {isEditing ? 'Edit Transaction' : 'New Transaction'}
           </h3>
           <button onClick={onClose} className="text-gray-400 hover:text-white transition">
             <X className="w-6 h-6" />
@@ -169,10 +189,10 @@ const AddTransaction: React.FC<Props> = ({ accounts, categories, onClose, onAdd 
         <div className="flex justify-end gap-3 pt-4 border-t border-[#303030]">
           <button onClick={onClose} className="px-4 py-2 text-gray-400 hover:text-white">Cancel</button>
           <button
-            onClick={handleAdd}
-            className="px-6 py-2 rounded-lg bg-white text-black font-bold hover:bg-gray-200 shadow-lg shadow-white/5"
+            onClick={handleSave}
+            className="px-6 py-2 rounded-lg bg-white text-black font-bold hover:bg-gray-200 shadow-lg shadow-white/5 flex items-center gap-2"
           >
-            Save Transaction
+            <Save className="w-4 h-4" /> {isEditing ? 'Save Changes' : 'Save Transaction'}
           </button>
         </div>
       </div>

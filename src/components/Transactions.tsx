@@ -14,7 +14,7 @@ const Transactions: React.FC = () => {
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
-  const [showAddTransaction, setShowAddTransaction] = useState(false)
+  const [transactionEditor, setTransactionEditor] = useState<Transaction | 'NEW' | null>(null)
   const [showAddAccount, setShowAddAccount] = useState(false)
   const [showAddCategory, setShowAddCategory] = useState(false)
 
@@ -35,9 +35,13 @@ const Transactions: React.FC = () => {
     loadData()
   }, [])
 
-  const handleAddTransaction = (transaction: Transaction) => {
-    setTransactions(prev => [transaction, ...prev])
-    setShowAddTransaction(false)
+  const handleTransactionSaved = (transaction: Transaction) => {
+    setTransactions(prev => {
+      const exists = prev.some(t => t.id === transaction.id)
+      if (exists) return prev.map(t => (t.id === transaction.id ? transaction : t))
+      return [transaction, ...prev]
+    })
+    setTransactionEditor(null)
   }
 
   const handleCreateAccount = async (name: string, openingBalance: number) => {
@@ -103,7 +107,7 @@ const Transactions: React.FC = () => {
             + Category
           </button>
           <button
-            onClick={() => setShowAddTransaction(true)}
+            onClick={() => setTransactionEditor('NEW')}
             className="inline-flex items-center gap-2 px-4 py-2 bg-white text-black rounded-lg font-medium"
           >
             <PlusCircle size={18} /> Add Transaction
@@ -118,15 +122,17 @@ const Transactions: React.FC = () => {
         transactions={transactions}
         accounts={accounts}
         categories={categories}
+        onEdit={(t) => setTransactionEditor(t)}
         onDelete={handleDeleteTransaction}
       />
 
-      {showAddTransaction && (
+      {transactionEditor && (
         <AddTransaction
+          transaction={transactionEditor === 'NEW' ? null : transactionEditor}
           accounts={accounts}
           categories={categories}
-          onClose={() => setShowAddTransaction(false)}
-          onAdd={handleAddTransaction}
+          onClose={() => setTransactionEditor(null)}
+          onSave={handleTransactionSaved}
         />
       )}
       {showAddAccount && (

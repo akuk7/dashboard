@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react'
-import { Trash2, ArrowLeftRight } from 'lucide-react'
+import { Trash2, Edit, ArrowLeftRight } from 'lucide-react'
 import type { Transaction, TransactionAccount, TransactionCategory, TransactionType } from '../types/transaction'
 
 type TypeFilter = 'non_transfer' | 'all' | TransactionType
@@ -8,6 +8,7 @@ type Props = {
   transactions: Transaction[]
   accounts: TransactionAccount[]
   categories: TransactionCategory[]
+  onEdit: (transaction: Transaction) => void
   onDelete: (id: string) => void
 }
 
@@ -17,7 +18,7 @@ const typeBadge = (type: TransactionType) => {
   return { label: 'Transfer', color: 'text-blue-400 border-blue-400/30 bg-blue-400/10' }
 }
 
-const TransactionList: React.FC<Props> = ({ transactions, accounts, categories, onDelete }) => {
+const TransactionList: React.FC<Props> = ({ transactions, accounts, categories, onEdit, onDelete }) => {
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('non_transfer')
   const [accountFilter, setAccountFilter] = useState('all')
   const [categoryFilter, setCategoryFilter] = useState('all')
@@ -128,6 +129,13 @@ const TransactionList: React.FC<Props> = ({ transactions, accounts, categories, 
                 <span className="text-sm font-bold text-white w-24 text-right">
                   {t.type === 'debit' ? '-' : t.type === 'credit' ? '+' : ''}{t.amount.toFixed(2)}
                 </span>
+                <button
+                  onClick={() => onEdit(t)}
+                  className="text-gray-600 hover:text-white p-1 rounded-full transition"
+                  title="Edit transaction"
+                >
+                  <Edit className="w-4 h-4" />
+                </button>
                 <button
                   onClick={() => onDelete(t.id)}
                   className="text-gray-600 hover:text-red-500 p-1 rounded-full transition"

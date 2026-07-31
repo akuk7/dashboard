@@ -52,6 +52,10 @@ const TransactionDashboard: React.FC<Props> = ({ transactions, accounts, categor
     return map
   }, [accounts, transactions])
 
+  const netBalance = useMemo(() => {
+    return accounts.reduce((sum, a) => sum + (balances[a.id] ?? a.opening_balance), 0)
+  }, [accounts, balances])
+
   const summary = useMemo(() => {
     let income = 0
     let expense = 0
@@ -94,6 +98,11 @@ const TransactionDashboard: React.FC<Props> = ({ transactions, accounts, categor
   return (
     <div className="flex flex-col md:flex-row gap-4 mt-6">
       <div className="flex-1 grid grid-cols-2 sm:grid-cols-3 gap-3">
+        <div className="p-4 bg-[#121212] rounded-xl border border-white/40">
+          <p className="text-xs text-gray-500 mb-1">Net Balance</p>
+          <p className={`text-lg font-bold ${netBalance >= 0 ? 'text-white' : 'text-red-400'}`}>{netBalance.toFixed(2)}</p>
+        </div>
+
         <div className="p-4 bg-[#121212] rounded-xl border border-[#303030]">
           <p className="text-xs text-gray-500 mb-1">Income</p>
           <p className="text-lg font-bold text-green-400">{summary.income.toFixed(2)}</p>
