@@ -4,14 +4,7 @@ import { supabase } from './lib/supabase'; // Ensure this path is correct
 
 export default function AuthForm() {
   return (
-    <div 
-      style={{
-        width: '30vw',
-  
-        marginTop: '50px',
-        padding: '20px',
-      }}
-    >
+    <div className="w-[90vw] max-w-[400px] md:w-[30vw] md:max-w-none mx-auto md:mx-0 mt-12 p-5">
       <Auth
         // 1. Pass the pre-initialized Supabase client
         supabaseClient={supabase}
