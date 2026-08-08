@@ -138,26 +138,18 @@ const MobileHabits: React.FC = () => {
       <MobileHeader
         title="Habits"
         action={
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1 p-1 rounded-lg bg-[#121212] border border-[#303030]">
-              <button
-                onClick={() => setView('list')}
-                className={`p-1.5 rounded-md ${view === 'list' ? 'bg-[#303030] text-white' : 'text-gray-500'}`}
-              >
-                <List className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => setView('graph')}
-                className={`p-1.5 rounded-md ${view === 'graph' ? 'bg-[#303030] text-white' : 'text-gray-500'}`}
-              >
-                <BarChart3 className="w-4 h-4" />
-              </button>
-            </div>
+          <div className="flex items-center gap-1 p-1 rounded-lg bg-[#121212] border border-[#303030]">
             <button
-              onClick={() => setShowAdd(true)}
-              className="inline-flex items-center gap-1.5 px-3 py-2 bg-white text-black rounded-lg text-sm font-medium"
+              onClick={() => setView('list')}
+              className={`p-1.5 rounded-md ${view === 'list' ? 'bg-[#303030] text-white' : 'text-gray-500'}`}
             >
-              <PlusCircle className="w-4 h-4" /> Add
+              <List className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setView('graph')}
+              className={`p-1.5 rounded-md ${view === 'graph' ? 'bg-[#303030] text-white' : 'text-gray-500'}`}
+            >
+              <BarChart3 className="w-4 h-4" />
             </button>
           </div>
         }
@@ -272,6 +264,13 @@ const MobileHabits: React.FC = () => {
           </div>
         </div>
       )}
+
+      <button
+        onClick={() => setShowAdd(true)}
+        className="fixed bottom-20 right-4 w-14 h-14 rounded-full bg-white text-black flex items-center justify-center shadow-xl"
+      >
+        <PlusCircle className="w-6 h-6" />
+      </button>
 
       {showAdd && <AddHabit onClose={() => setShowAdd(false)} onAdd={loadHabits} />}
     </div>
