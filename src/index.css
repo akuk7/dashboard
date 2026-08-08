@@ -15,6 +15,18 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Some embedding contexts (e.g. VS Code's Simple Browser/Live Preview) inject
+   their own `body { display: flex }`. That turns #root into a flex item that
+   sizes to its own content instead of stretching to the viewport, shrinking
+   or overflowing the whole app depending on what's rendered. Pin #root to an
+   absolute width so no ancestor's display mode can affect it; the existing
+   `overflow-x: hidden` on html/body below clips the few px scrollbar-gutter
+   overhang 100vw can introduce on browsers with a visible scrollbar. */
+#root {
+  width: 100vw;
+  min-width: 0;
+}
+
 /* Custom Scrollbar targeting ALL axes and elements with overflow */
 
 /* Target the whole document and elements that use scrolling */
@@ -64,12 +76,44 @@ body::-webkit-scrollbar-button,
 html {
   font-size: 16px !important;
     scroll-behavior: smooth; /* Optional: Makes the jump smoother */
+    overflow-x: hidden;
+    overscroll-behavior-x: none;
 }
 body{
   -webkit-text-size-adjust: 100%;
+  overflow-x: hidden;
+  overscroll-behavior-x: none;
 }
 :target {
-    /* Set the space above the target element. 
+    /* Set the space above the target element.
        40px (navbar height) + 20px (desired gap) = 60px. */
     scroll-margin-top: 60px;
+}
+
+/* Mobile app shell: scroll containers should behave like a native app's -
+   scrollable, but with no visible track eating into the content width. */
+.no-scrollbar {
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* legacy Edge/IE */
+}
+.no-scrollbar::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, Opera */
+}
+
+/* While the mobile shell is mounted, the page itself is the scroll container
+   (see MobileApp.tsx). On desktop browsers with classic (non-overlay)
+   scrollbars, that reserves ~15-20px of width from the viewport, which a real
+   phone's overlay scrollbar never does - hide it here to match. Scoped to
+   this class (toggled on <html>/<body> only while MobileApp is mounted) so
+   the desktop Dashboard's own thin scrollbar styling above is untouched. */
+html.mobile-app-shell,
+body.mobile-app-shell {
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* legacy Edge/IE */
+}
+html.mobile-app-shell::-webkit-scrollbar,
+body.mobile-app-shell::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, Opera */
+    width: 0;
+    height: 0;
 }

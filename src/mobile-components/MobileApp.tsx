@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { FC } from 'react'
 import BottomNav from './BottomNav'
 import MobileHabits from './habits/MobileHabits'
@@ -16,14 +16,21 @@ const SCREENS: Record<MobileTab, FC> = {
 }
 
 const MobileApp: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<MobileTab>('habits')
+  const [activeTab, setActiveTab] = useState<MobileTab>('watchlist')
   const Screen = SCREENS[activeTab]
 
+  useEffect(() => {
+    document.documentElement.classList.add('mobile-app-shell')
+    document.body.classList.add('mobile-app-shell')
+    return () => {
+      document.documentElement.classList.remove('mobile-app-shell')
+      document.body.classList.remove('mobile-app-shell')
+    }
+  }, [])
+
   return (
-    <div className="flex flex-col bg-black text-white" style={{ height: '100dvh' }}>
-      <div className="flex-1 min-h-0 overflow-y-auto relative">
-        <Screen />
-      </div>
+    <div className="min-h-dvh w-full overflow-x-hidden bg-black text-white">
+      <Screen />
       <BottomNav activeTab={activeTab} onChange={setActiveTab} />
     </div>
   )

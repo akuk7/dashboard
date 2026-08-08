@@ -116,7 +116,7 @@ const MobileKanban: React.FC = () => {
   }
 
   return (
-    <div className="min-h-full pb-24">
+    <div className="w-full pb-24">
       <MobileHeader
         title="Tasks"
         action={

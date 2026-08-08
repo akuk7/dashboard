@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { PlusCircle, Check } from 'lucide-react'
+import { PlusCircle, Check, List, BarChart3 } from 'lucide-react'
 import supabase from '../../lib/supabase'
 import type { Habit } from '../../types/habit'
 import AddHabit from '../../components/AddHabit'
@@ -43,6 +43,7 @@ const MobileHabits: React.FC = () => {
   const [habits, setHabits] = useState<Habit[]>([])
   const [records, setRecords] = useState<Record<string, Record<string, boolean>>>({})
   const [showAdd, setShowAdd] = useState(false)
+  const [view, setView] = useState<'list' | 'graph'>('list')
 
   const trackerDates = useMemo(() => generateTrackerDates(TRACKER_DAYS), [])
 
@@ -73,14 +74,11 @@ const MobileHabits: React.FC = () => {
     loadRecords()
   }, [period, trackerDates])
 
-  const stats = useMemo(() => {
+  const statPerHabit = useMemo(() => {
     const today = new Date()
     today.setUTCHours(0, 0, 0, 0)
 
-    let totalDone = 0
-    let totalPossible = 0
-
-    habits.forEach((h) => {
+    return habits.map((h) => {
       const habitStart = new Date(h.created_at)
       habitStart.setUTCHours(0, 0, 0, 0)
       const daysInPeriod = PERIOD_DAYS[period]
@@ -94,20 +92,20 @@ const MobileHabits: React.FC = () => {
         datesToCheck.push(formatDate(dt))
       }
 
-      datesToCheck.forEach((d) => {
+      const done = datesToCheck.reduce((acc, d) => {
         const dayOfWeek = new Date(d).getDay()
         const isScheduled = h.frequency ? h.frequency.includes(dayOfWeek) : true
-        if (!isScheduled) return
-        totalPossible += 1
-        if (records[d]?.[h.id]) totalDone += 1
-      })
-    })
+        const isDone = records[d]?.[h.id]
+        return acc + (isDone && isScheduled ? 1 : 0)
+      }, 0)
 
-    return {
-      done: totalDone,
-      total: totalPossible,
-      pct: totalPossible ? Math.round((totalDone / totalPossible) * 100) : 0,
-    }
+      const total = datesToCheck.filter((d) => {
+        const dayOfWeek = new Date(d).getDay()
+        return h.frequency ? h.frequency.includes(dayOfWeek) : true
+      }).length
+
+      return { id: h.id, name: h.name, color: h.color, done, total }
+    })
   }, [habits, records, period])
 
   const toggle = async (date: string, habitId: string) => {
@@ -136,113 +134,144 @@ const MobileHabits: React.FC = () => {
   }
 
   return (
-    <div className="min-h-full pb-4">
+    <div className="w-full pb-24">
       <MobileHeader
         title="Habits"
         action={
-          <button
-            onClick={() => setShowAdd(true)}
-            className="inline-flex items-center gap-1.5 px-3 py-2 bg-white text-black rounded-lg text-sm font-medium"
-          >
-            <PlusCircle className="w-4 h-4" /> Add
-          </button>
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 p-1 rounded-lg bg-[#121212] border border-[#303030]">
+              <button
+                onClick={() => setView('list')}
+                className={`p-1.5 rounded-md ${view === 'list' ? 'bg-[#303030] text-white' : 'text-gray-500'}`}
+              >
+                <List className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => setView('graph')}
+                className={`p-1.5 rounded-md ${view === 'graph' ? 'bg-[#303030] text-white' : 'text-gray-500'}`}
+              >
+                <BarChart3 className="w-4 h-4" />
+              </button>
+            </div>
+            <button
+              onClick={() => setShowAdd(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-2 bg-white text-black rounded-lg text-sm font-medium"
+            >
+              <PlusCircle className="w-4 h-4" /> Add
+            </button>
+          </div>
         }
       />
 
-      <div className="px-4 pt-4">
-        <div className="flex bg-[#121212] border border-[#303030] rounded-xl p-1 mb-4">
-          {PERIOD_ORDER.map((key) => (
-            <button
-              key={key}
-              onClick={() => setPeriod(key)}
-              className={`flex-1 py-2 rounded-lg text-sm font-medium transition ${
-                period === key ? 'bg-[#303030] text-white' : 'text-gray-400'
-              }`}
-            >
-              {PERIOD_LABELS[key]}
-            </button>
-          ))}
-        </div>
+      {view === 'graph' ? (
+        <div className="px-4 pt-4">
+          <div className="flex bg-[#121212] border border-[#303030] rounded-xl p-1 mb-4">
+            {PERIOD_ORDER.map((key) => (
+              <button
+                key={key}
+                onClick={() => setPeriod(key)}
+                className={`flex-1 py-2 rounded-lg text-sm font-medium transition ${
+                  period === key ? 'bg-[#303030] text-white' : 'text-gray-400'
+                }`}
+              >
+                {PERIOD_LABELS[key]}
+              </button>
+            ))}
+          </div>
 
-        <div className="bg-[#121212] border border-[#303030] rounded-xl p-4 mb-6">
-          <h3 className="text-sm font-semibold text-gray-300 mb-3">
-            Stats ({PERIOD_LABELS[period].toLowerCase()})
-          </h3>
-          {habits.length === 0 ? (
-            <p className="text-gray-500 text-sm">No habits yet.</p>
-          ) : (
-            <>
-              <div className="flex items-end justify-between mb-2">
-                <span className="text-3xl font-extrabold text-white">{stats.pct}%</span>
-                <span className="text-sm text-gray-400">
-                  {stats.done} / {stats.total} completed
-                </span>
+          <div className="bg-[#121212] border border-[#303030] rounded-xl p-4">
+            <h3 className="text-sm font-semibold text-gray-300 mb-3">
+              Stats ({PERIOD_LABELS[period].toLowerCase()})
+            </h3>
+            {habits.length === 0 ? (
+              <p className="text-gray-500 text-sm">No habits yet.</p>
+            ) : (
+              <div className="flex flex-col gap-3">
+                {statPerHabit.map((s) => {
+                  const pct = s.total ? Math.round((s.done / s.total) * 100) : 0
+                  const color = s.color || '#60a5fa'
+                  return (
+                    <div key={s.id}>
+                      <div className="flex items-center justify-between gap-2 mb-1">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: color }} />
+                          <span className="text-sm font-medium text-white truncate">{s.name}</span>
+                        </div>
+                        <span className="text-xs text-gray-400 flex-shrink-0">
+                          {s.done} / {s.total}
+                        </span>
+                      </div>
+                      <div className="w-full h-1.5 bg-[#0A0A0A] rounded-full overflow-hidden">
+                        <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: color }} />
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
-              <div className="w-full h-2 bg-[#0A0A0A] rounded-full overflow-hidden">
-                <div className="h-full bg-white" style={{ width: `${stats.pct}%` }} />
+            )}
+          </div>
+        </div>
+      ) : (
+        <div className="px-4 pt-4">
+          <h3 className="text-lg font-bold text-white mb-3">Tracker</h3>
+          <div className="bg-[#121212] border border-[#303030] rounded-xl p-4">
+            <h4 className="text-base font-semibold text-white mb-1">Habits</h4>
+            {habits.length === 0 ? (
+              <p className="text-gray-500 text-sm">No habits yet. Add one above.</p>
+            ) : (
+              <div className="flex flex-col gap-4 mt-3">
+                {habits.map((h) => (
+                  <div key={h.id}>
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="w-2.5 h-2.5 rounded-full" style={{ background: h.color }} />
+                      <span className="text-sm font-medium text-white">{h.name}</span>
+                    </div>
+                    <div className="flex gap-2">
+                      {trackerDates.map((d) => {
+                        const dateObj = new Date(d)
+                        const dayOfWeek = dateObj.getDay()
+                        const habitStart = new Date(h.created_at)
+                        habitStart.setUTCHours(0, 0, 0, 0)
+                        const checkDate = new Date(d)
+                        checkDate.setUTCHours(0, 0, 0, 0)
+                        const isScheduled =
+                          (h.frequency ? h.frequency.includes(dayOfWeek) : true) && checkDate >= habitStart
+                        const checked = !!(records[d] && records[d][h.id])
+                        const bgColor = h.color || '#60a5fa'
+
+                        return (
+                          <button
+                            key={d}
+                            onClick={() => isScheduled && toggle(d, h.id)}
+                            disabled={!isScheduled}
+                            style={{
+                              backgroundColor: isScheduled ? `${bgColor}30` : '#1a1a1a',
+                              opacity: isScheduled ? 1 : 0.3,
+                            }}
+                            className="flex-1 flex flex-col items-center gap-1 py-2 rounded-lg"
+                          >
+                            <span className="text-[10px] text-gray-400">
+                              {dateObj.toLocaleDateString(undefined, { weekday: 'short' }).charAt(0)}
+                            </span>
+                            {isScheduled ? (
+                              <Check
+                                className="w-4 h-4"
+                                style={{ color: checked ? bgColor : 'transparent' }}
+                              />
+                            ) : (
+                              <div className="w-1 h-1 bg-gray-700 rounded-full" />
+                            )}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ))}
               </div>
-            </>
-          )}
+            )}
+          </div>
         </div>
-
-        <h3 className="text-lg font-bold text-white mb-3">Tracker</h3>
-        <div className="bg-[#121212] border border-[#303030] rounded-xl p-4">
-          <h4 className="text-base font-semibold text-white mb-1">Habits</h4>
-          {habits.length === 0 ? (
-            <p className="text-gray-500 text-sm">No habits yet. Add one above.</p>
-          ) : (
-            <div className="flex flex-col gap-4 mt-3">
-              {habits.map((h) => (
-                <div key={h.id}>
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="w-2.5 h-2.5 rounded-full" style={{ background: h.color }} />
-                    <span className="text-sm font-medium text-white">{h.name}</span>
-                  </div>
-                  <div className="flex gap-2">
-                    {trackerDates.map((d) => {
-                      const dateObj = new Date(d)
-                      const dayOfWeek = dateObj.getDay()
-                      const habitStart = new Date(h.created_at)
-                      habitStart.setUTCHours(0, 0, 0, 0)
-                      const checkDate = new Date(d)
-                      checkDate.setUTCHours(0, 0, 0, 0)
-                      const isScheduled =
-                        (h.frequency ? h.frequency.includes(dayOfWeek) : true) && checkDate >= habitStart
-                      const checked = !!(records[d] && records[d][h.id])
-                      const bgColor = h.color || '#60a5fa'
-
-                      return (
-                        <button
-                          key={d}
-                          onClick={() => isScheduled && toggle(d, h.id)}
-                          disabled={!isScheduled}
-                          style={{
-                            backgroundColor: isScheduled ? `${bgColor}30` : '#1a1a1a',
-                            opacity: isScheduled ? 1 : 0.3,
-                          }}
-                          className="flex-1 flex flex-col items-center gap-1 py-2 rounded-lg"
-                        >
-                          <span className="text-[10px] text-gray-400">
-                            {dateObj.toLocaleDateString(undefined, { weekday: 'short' }).charAt(0)}
-                          </span>
-                          {isScheduled ? (
-                            <Check
-                              className="w-4 h-4"
-                              style={{ color: checked ? bgColor : 'transparent' }}
-                            />
-                          ) : (
-                            <div className="w-1 h-1 bg-gray-700 rounded-full" />
-                          )}
-                        </button>
-                      )
-                    })}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
+      )}
 
       {showAdd && <AddHabit onClose={() => setShowAdd(false)} onAdd={loadHabits} />}
     </div>

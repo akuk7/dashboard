@@ -149,10 +149,10 @@ const MobileWatchlist: React.FC = () => {
   }
 
   return (
-    <div className="min-h-full pb-4">
+    <div className="w-full pb-24">
       <MobileHeader title="WatchList" />
 
-      <div className="px-4 pt-4">
+      <div className="px-4 pt-4 min-w-0">
         <div className="relative mb-4">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
           <input
@@ -202,36 +202,38 @@ const MobileWatchlist: React.FC = () => {
           </div>
         )}
 
-        <div className="flex items-center gap-2 mb-4 overflow-x-auto pb-1">
-          <button
-            onClick={() => setSelectedCategory(BASE_CATEGORY)}
-            className={`px-4 py-1.5 rounded-full text-sm font-medium flex-shrink-0 ${
-              selectedCategory === BASE_CATEGORY ? 'bg-white text-black' : 'bg-[#121212] text-gray-300 border border-[#303030]'
-            }`}
-          >
-            General
-          </button>
-          {categories
-            .filter((c) => c.name !== BASE_CATEGORY)
-            .map((cat) => (
-              <button
-                key={cat.name}
-                onClick={() => setSelectedCategory(cat.name)}
-                className={`px-4 py-1.5 rounded-full text-sm font-medium flex-shrink-0 ${
-                  selectedCategory === cat.name
-                    ? 'bg-white text-black'
-                    : 'bg-[#121212] text-gray-300 border border-[#303030]'
-                }`}
-              >
-                {cat.name}
-              </button>
-            ))}
-          <button
-            onClick={() => setShowCategoryModal(true)}
-            className="px-3 py-1.5 rounded-full text-sm text-gray-300 border border-[#303030] flex items-center gap-1 flex-shrink-0"
-          >
-            <PlusCircle className="w-3.5 h-3.5" /> New
-          </button>
+        <div className="w-full min-w-0 overflow-x-auto overscroll-x-contain touch-pan-x mb-4 -mx-4 px-4 pb-1 no-scrollbar">
+          <div className="flex items-center gap-2 w-max">
+            <button
+              onClick={() => setSelectedCategory(BASE_CATEGORY)}
+              className={`px-4 py-1.5 rounded-full text-sm font-medium shrink-0 ${
+                selectedCategory === BASE_CATEGORY ? 'bg-white text-black' : 'bg-[#121212] text-gray-300 border border-[#303030]'
+              }`}
+            >
+              General
+            </button>
+            {categories
+              .filter((c) => c.name !== BASE_CATEGORY)
+              .map((cat) => (
+                <button
+                  key={cat.name}
+                  onClick={() => setSelectedCategory(cat.name)}
+                  className={`px-4 py-1.5 rounded-full text-sm font-medium shrink-0 ${
+                    selectedCategory === cat.name
+                      ? 'bg-white text-black'
+                      : 'bg-[#121212] text-gray-300 border border-[#303030]'
+                  }`}
+                >
+                  {cat.name}
+                </button>
+              ))}
+            <button
+              onClick={() => setShowCategoryModal(true)}
+              className="px-3 py-1.5 rounded-full text-sm text-gray-300 border border-[#303030] flex items-center gap-1 shrink-0"
+            >
+              <PlusCircle className="w-3.5 h-3.5" /> New
+            </button>
+          </div>
         </div>
 
         {filteredWatchlist.length === 0 ? (

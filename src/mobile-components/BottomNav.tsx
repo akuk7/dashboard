@@ -2,10 +2,10 @@ import { CheckSquare, ListTodo, Film, Wallet } from 'lucide-react'
 import type { MobileTab } from './MobileApp'
 
 const TABS: { id: MobileTab; label: string; icon: typeof CheckSquare }[] = [
+  { id: 'watchlist', label: 'WatchList', icon: Film },
   { id: 'habits', label: 'Habits', icon: CheckSquare },
   { id: 'tasks', label: 'Tasks', icon: ListTodo },
-  { id: 'watchlist', label: 'WatchList', icon: Film },
-  { id: 'transactions', label: 'Money', icon: Wallet },
+  { id: 'transactions', label: 'Transactions', icon: Wallet },
 ]
 
 type Props = {
@@ -15,7 +15,10 @@ type Props = {
 
 const BottomNav: React.FC<Props> = ({ activeTab, onChange }) => {
   return (
-    <nav className="flex-shrink-0 flex items-stretch justify-around border-t border-[#303030] bg-[#0A0A0A]" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+    <nav
+      className="fixed bottom-0 left-0 right-0 z-30 flex items-stretch justify-around border-t border-[#303030] bg-[#0A0A0A]"
+      style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+    >
       {TABS.map(({ id, label, icon: Icon }) => {
         const isActive = id === activeTab
         return (
