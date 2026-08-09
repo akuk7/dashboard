@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Search, Trash2, Tag, PlusCircle, X, Clapperboard } from 'lucide-react';
+import { Search, Trash2, Tag, PlusCircle, X, Clapperboard, LayoutGrid } from 'lucide-react';
 import supabase from '../lib/supabase';
 import type { WatchlistItem, WatchlistCategoryName, Category, OmdbResult, OmdbSearchResponse } from '../types/watchList';
 import CategoryModal from '../models/CategoryModel';
+import WatchedGrid from './WatchedGrid';
 
 // --- CONFIGURATION ---
 const OMDB_API_KEY = import.meta.env.VITE_OMDB_API_KEY;
@@ -80,6 +81,7 @@ const Watchlist: React.FC = () => {
     const [selectedCategory, setSelectedCategory] = useState<WatchlistCategoryName>(BASE_CATEGORY);
     const [isLoading, setIsLoading] = useState(false);
     const [showCategoryModal, setShowCategoryModal] = useState(false);
+    const [showWatchedGrid, setShowWatchedGrid] = useState(false);
 
     const filteredWatchlist = useMemo(() => {
         let list = watchlist;
@@ -183,6 +185,7 @@ const Watchlist: React.FC = () => {
     return (
         <div className="p-6 border border-[#303030] shadow-md rounded-xl text-gray-100 flex flex-col h-[600px]">
             {showCategoryModal && <CategoryModal onClose={() => setShowCategoryModal(false)} onCreate={handleCreateCategoryFromModal} />}
+            {showWatchedGrid && <WatchedGrid onClose={() => setShowWatchedGrid(false)} />}
 
             <h3 className="text-xl font-bold mb-4 flex items-center gap-2 text-white border-b border-[#303030] pb-3">
                 <Clapperboard className="w-6 h-6 text-gray-400" /> Movie Watchlist
@@ -279,13 +282,23 @@ const Watchlist: React.FC = () => {
                     </select>
                 </div>
 
-                {/* Create Category Button */}
-                <button
-                    onClick={() => setShowCategoryModal(true)}
-                    className="px-3 py-1 rounded-lg bg-[#1D2330] text-gray-300 hover:bg-[#303030] transition border border-[#303030] flex items-center gap-1 text-sm"
-                >
-                    <PlusCircle className="w-4 h-4" /> Category
-                </button>
+                <div className="flex items-center gap-2">
+                    {/* Watched Grid Button */}
+                    <button
+                        onClick={() => setShowWatchedGrid(true)}
+                        className="px-3 py-1 rounded-lg bg-[#1D2330] text-gray-300 hover:bg-[#303030] transition border border-[#303030] flex items-center gap-1 text-sm"
+                    >
+                        <LayoutGrid className="w-4 h-4" /> Watched
+                    </button>
+
+                    {/* Create Category Button */}
+                    <button
+                        onClick={() => setShowCategoryModal(true)}
+                        className="px-3 py-1 rounded-lg bg-[#1D2330] text-gray-300 hover:bg-[#303030] transition border border-[#303030] flex items-center gap-1 text-sm"
+                    >
+                        <PlusCircle className="w-4 h-4" /> Category
+                    </button>
+                </div>
             </div>
 
             {/* --- WATCHLIST ITEMS --- */}

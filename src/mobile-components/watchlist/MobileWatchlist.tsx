@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Search, X, Trash2, Tag, PlusCircle } from 'lucide-react'
+import { Search, X, Trash2, Tag, PlusCircle, LayoutGrid } from 'lucide-react'
 import supabase from '../../lib/supabase'
 import type {
   WatchlistItem,
@@ -10,6 +10,7 @@ import type {
 } from '../../types/watchList'
 import CategoryModal from '../../models/CategoryModel'
 import MobileHeader from '../MobileHeader'
+import MobileWatchedGrid from './MobileWatchedGrid'
 
 const OMDB_API_KEY = import.meta.env.VITE_OMDB_API_KEY
 const BASE_CATEGORY = 'General'
@@ -68,6 +69,7 @@ const MobileWatchlist: React.FC = () => {
   const [categories, setCategories] = useState<Category[]>([])
   const [selectedCategory, setSelectedCategory] = useState<WatchlistCategoryName>(BASE_CATEGORY)
   const [showCategoryModal, setShowCategoryModal] = useState(false)
+  const [showWatchedGrid, setShowWatchedGrid] = useState(false)
 
   const loadData = async () => {
     const cats = await fetchCategories()
@@ -150,7 +152,18 @@ const MobileWatchlist: React.FC = () => {
 
   return (
     <div className="w-full pb-24">
-      <MobileHeader title="WatchList" />
+      <MobileHeader
+        title="WatchList"
+        action={
+          <button
+            onClick={() => setShowWatchedGrid(true)}
+            className="text-gray-300 hover:text-white transition"
+            aria-label="View watched grid"
+          >
+            <LayoutGrid className="w-5 h-5" />
+          </button>
+        }
+      />
 
       <div className="px-4 pt-4 min-w-0">
         <div className="relative mb-4">
@@ -265,6 +278,7 @@ const MobileWatchlist: React.FC = () => {
       {showCategoryModal && (
         <CategoryModal onClose={() => setShowCategoryModal(false)} onCreate={handleCreateCategory} />
       )}
+      {showWatchedGrid && <MobileWatchedGrid onClose={() => setShowWatchedGrid(false)} />}
     </div>
   )
 }

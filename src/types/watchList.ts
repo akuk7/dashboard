@@ -35,3 +35,14 @@ export interface Category {
   name: WatchlistCategoryName;
   ranked: boolean;
 }
+
+// Interface for items in the Supabase 'watched_movies' table
+export interface WatchedMovie {
+  id: string;
+  imdb_id: string;
+  title: string;
+  year: number | null;
+  poster_url: string | null;
+  letterboxd_uri: string | null;
+  created_at: string;
+}
