@@ -1,20 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import type { Habit } from "../types/habit";
-import { Check } from "lucide-react";
+import { Check, Pencil } from "lucide-react";
 import supabase from "../lib/supabase";
-
-const formatDate = (d: Date) => d.toISOString().split("T")[0];
-
-const generateDates = (days: number) => {
-  const arr: string[] = [];
-  const today = new Date();
-  for (let i = days - 1; i >= 0; i--) {
-    const d = new Date(today);
-    d.setDate(today.getDate() - i);
-    arr.push(formatDate(d));
-  }
-  return arr;
-};
+import { addDaysIST, datesEndingTodayIST, dayOfMonth, dayOfWeekIST, todayIST, toISTDateString } from "../lib/dateUtils";
 
 type HabitRecordRow = {
   habit_id: string;
@@ -22,19 +10,37 @@ type HabitRecordRow = {
   done: boolean;
 };
 
-const HabitTracker: React.FC = () => {
+type PeriodKeys = 'week' | 'month' | 'year';
+const PERIOD_DAYS: Record<PeriodKeys, number> = { week: 7, month: 30, year: 365 };
+const TRACKER_DAYS = 15;
+
+type Props = {
+  period: PeriodKeys;
+  refreshToken?: number;
+  onChange?: () => void;
+  onEditHabit?: (habit: Habit) => void;
+};
+
+const HabitTracker: React.FC<Props> = ({ period, refreshToken, onChange, onEditHabit }) => {
   const [habits, setHabits] = useState<Habit[]>([]);
   const [records, setRecords] = useState<Record<string, Record<string, boolean>>>(
     {}
   );
 
-  const dates = useMemo(() => generateDates(15), []);
+  const trackerDates = useMemo(() => datesEndingTodayIST(TRACKER_DAYS).reverse(), []);
+  // Covers both the fixed 15-day tracker grid and whichever stats period is selected -
+  // both ranges end today, so fetching the larger one covers the smaller for free.
+  const recordDates = useMemo(
+    () => datesEndingTodayIST(Math.max(TRACKER_DAYS, PERIOD_DAYS[period])),
+    [period]
+  );
 
   useEffect(() => {
     const loadData = async () => {
       const { data: hData, error: hErr } = await supabase
         .from("habits")
         .select("*")
+        .eq("active", true)
         .order("created_at", { ascending: false });
 
       if (hErr) console.error("Error loading habits:", hErr);
@@ -43,7 +49,7 @@ const HabitTracker: React.FC = () => {
       const { data: rData, error: rErr } = await supabase
         .from("habit_records")
         .select("habit_id,date,done")
-        .in("date", dates);
+        .in("date", recordDates);
 
       if (rErr) console.error("Error loading records:", rErr);
 
@@ -55,7 +61,40 @@ const HabitTracker: React.FC = () => {
       setRecords(map);
     };
     loadData();
-  }, [dates]);
+  }, [recordDates, refreshToken]);
+
+  const statPerHabit = useMemo(() => {
+    const today = todayIST();
+    const daysInPeriod = PERIOD_DAYS[period];
+    const stats: Record<string, { done: number; total: number }> = {};
+
+    habits.forEach((h) => {
+      const habitStart = toISTDateString(h.created_at);
+      const datesToCheck: string[] = [];
+
+      for (let i = 0; i < daysInPeriod; i++) {
+        const d = addDaysIST(today, -i);
+        if (d < habitStart) break;
+        datesToCheck.push(d);
+      }
+
+      const done = datesToCheck.reduce((acc, d) => {
+        const dayOfWeek = dayOfWeekIST(d);
+        const isScheduled = h.frequency ? h.frequency.includes(dayOfWeek) : true;
+        const isDone = records[d] && records[d][h.id];
+        return acc + (isDone && isScheduled ? 1 : 0);
+      }, 0);
+
+      const total = datesToCheck.filter((d) => {
+        const dayOfWeek = dayOfWeekIST(d);
+        return h.frequency ? h.frequency.includes(dayOfWeek) : true;
+      }).length;
+
+      stats[h.id] = { done, total };
+    });
+
+    return stats;
+  }, [habits, records, period]);
 
   const toggle = async (date: string, habitId: string) => {
     const isChecked = !!(records[date] && records[date][habitId]);
@@ -73,6 +112,7 @@ const HabitTracker: React.FC = () => {
         if (next[date]) delete next[date][habitId];
         return next;
       });
+      onChange?.();
     } else {
       const { error } = await supabase
         .from("habit_records")
@@ -83,6 +123,7 @@ const HabitTracker: React.FC = () => {
         ...prev,
         [date]: { ...(prev[date] || {}), [habitId]: true },
       }));
+      onChange?.();
     }
   };
 
@@ -96,43 +137,60 @@ const HabitTracker: React.FC = () => {
   }
 
   return (
-    <div className=" w-[54vw]">
+    <div className="w-full">
       <div className="bg-[#121212] rounded-xl border border-[#303030] overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full border-collapse min-w-[600px] md:min-w-[700px]">
+          <table className="w-full table-fixed border-collapse min-w-150 md:min-w-175">
             <thead>
               <tr>
-                <th className="sticky left-0 bg-[#0A0A0A] text-left px-3 md:px-4 py-2 md:py-3 w-32 md:w-40 text-gray-100 font-semibold border-r border-[#303030] text-sm md:text-base">
+                <th className="sticky left-0 bg-[#0A0A0A] text-left px-3 md:px-4 py-2 md:py-3 w-28 md:w-36 text-gray-100 font-semibold border-r border-[#303030] text-sm md:text-base">
                   Habit
                 </th>
-                {dates.map((d) => (
+                {trackerDates.map((d) => (
                   <th
                     key={d}
-                    className="p-1 md:p-2 text-center text-[10px] md:text-xs text-gray-300 font-medium w-10 md:w-16"
+                    className="p-1 md:p-2 text-center text-[10px] md:text-xs text-gray-300 font-medium w-8 md:w-10"
                   >
-                    {new Date(d).getDate()}
+                    {dayOfMonth(d)}
                   </th>
                 ))}
+                <th className="p-1 md:p-2 pl-3 md:pl-4 text-left text-[10px] md:text-xs text-gray-300 font-medium w-55 md:w-95 border-l border-[#303030]">
+                  Progress
+                </th>
               </tr>
             </thead>
             <tbody>
-              {habits.map((h) => (
+              {habits.map((h) => {
+                const stat = statPerHabit[h.id] || { done: 0, total: 0 };
+                const pct = stat.total ? Math.round((stat.done / stat.total) * 100) : 0;
+                const barColor = h.color || "#60a5fa";
+
+                return (
                 <tr key={h.id} className="border-t border-[#303030]">
                   <td className="sticky left-0 bg-[#0A0A0A] px-3 md:px-4 py-2 md:py-3 text-xs md:text-sm font-medium text-white border-r border-[#303030]">
-                    {h.name}
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="inline-block w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: h.color }} />
+                        <span className="truncate">{h.name}</span>
+                      </div>
+                      {onEditHabit && (
+                        <button
+                          onClick={() => onEditHabit(h)}
+                          className="text-gray-500 hover:text-white flex-shrink-0"
+                          title="Edit habit"
+                        >
+                          <Pencil className="w-3 h-3 md:w-3.5 md:h-3.5" />
+                        </button>
+                      )}
+                    </div>
                   </td>
-                  {dates.map((d) => {
-                    const dateObj = new Date(d);
-                    const dayOfWeek = dateObj.getDay(); // 0-6
-
-                    const habitStart = new Date(h.created_at);
-                    habitStart.setUTCHours(0, 0, 0, 0);
-                    const checkDate = new Date(d);
-                    checkDate.setUTCHours(0, 0, 0, 0);
+                  {trackerDates.map((d) => {
+                    const dayOfWeek = dayOfWeekIST(d);
+                    const habitStart = toISTDateString(h.created_at);
 
                     // Check if this habit is supposed to be followed on this day
                     // AND if the day is not before habit creation
-                    const isScheduled = (h.frequency ? h.frequency.includes(dayOfWeek) : true) && (checkDate >= habitStart);
+                    const isScheduled = (h.frequency ? h.frequency.includes(dayOfWeek) : true) && (d >= habitStart);
 
                     const checked = !!(records[d] && records[d][h.id]);
                     const bgColor = h.color || "#60a5fa";
@@ -146,7 +204,7 @@ const HabitTracker: React.FC = () => {
                           style={{
                             // Dim the box if it's not a scheduled day
                             backgroundColor: isScheduled ? `${bgColor}30` : '#1a1a1a',
-                            border: d === formatDate(new Date()) && isScheduled ? "1px solid #666" : "none",
+                            border: d === todayIST() && isScheduled ? "1px solid #666" : "none",
                             cursor: isScheduled ? 'pointer' : 'not-allowed',
                             opacity: isScheduled ? 1 : 0.3,
                           }}
@@ -169,8 +227,22 @@ const HabitTracker: React.FC = () => {
                       </td>
                     );
                   })}
+                  {/* Progress bar for the selected period, collinear with this habit's own checkbox row */}
+                  <td className="p-1 md:p-1.5 pl-3 md:pl-4 border-l border-[#303030]">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] md:text-xs text-gray-400 w-8 md:w-10 text-right flex-shrink-0">
+                        {stat.done}/{stat.total}
+                      </span>
+                      <div className="flex-1 h-3 md:h-7 bg-[#0A0A0A] border border-[#303030] rounded-md md:rounded-lg overflow-hidden">
+                        <div
+                          className="h-full rounded-md md:rounded-lg transition-all"
+                          style={{ width: `${pct}%`, backgroundColor: `${barColor}30` }}
+                        />
+                      </div>
+                    </div>
+                  </td>
                 </tr>
-              ))}
+              );})}
             </tbody>
           </table>
         </div>

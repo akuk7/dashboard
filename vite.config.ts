@@ -10,6 +10,12 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon-180x180.png', 'pwa-icon.svg'],
+      workbox: {
+        // The mobile shell now uses real routes (/habits, /tasks, ...) - make
+        // sure navigating/reloading on any of them resolves to the app shell
+        // instead of a missing precached URL.
+        navigateFallback: '/index.html',
+      },
       manifest: {
         name: 'Dashboard',
         short_name: 'Dashboard',

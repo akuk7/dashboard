@@ -1,10 +1,14 @@
-import React, { useState } from 'react'
-import { X, PlusCircle } from 'lucide-react'
+import React, { useEffect, useState } from 'react'
+import { X, PlusCircle, Save, Ban } from 'lucide-react'
 import supabase from '../lib/supabase'
+import type { Habit } from '../types/habit'
+import { todayIST } from '../lib/dateUtils'
 
 type Props = {
+  habit?: Habit | null // null/undefined for new, populated for editing
   onClose: () => void
   onAdd: () => void
+  onDeactivated?: () => void
 }
 
 const DAYS = [
@@ -17,11 +21,27 @@ const DAYS = [
   { label: 'Sat', value: 6 },
 ];
 
-const AddHabit: React.FC<Props> = ({ onClose, onAdd }) => {
+const AddHabit: React.FC<Props> = ({ habit, onClose, onAdd, onDeactivated }) => {
+  const isEditing = !!habit
+
   const [name, setName] = useState('')
   const [color, setColor] = useState('#60a5fa')
   const [frequency, setFrequency] = useState<number[]>([1, 2, 3, 4, 5]); // Default Weekdays
-  const [createdAt, setCreatedAt] = useState(new Date().toISOString())
+  const [createdAt, setCreatedAt] = useState(todayIST())
+
+  useEffect(() => {
+    if (habit) {
+      setName(habit.name)
+      setColor(habit.color || '#60a5fa')
+      setFrequency(habit.frequency || [])
+      setCreatedAt(habit.created_at.slice(0, 10))
+    } else {
+      setName('')
+      setColor('#60a5fa')
+      setFrequency([1, 2, 3, 4, 5])
+      setCreatedAt(todayIST())
+    }
+  }, [habit])
 
   const toggleDay = (val: number) => {
     setFrequency(prev =>
@@ -29,21 +49,34 @@ const AddHabit: React.FC<Props> = ({ onClose, onAdd }) => {
     );
   };
 
-  const handleAdd = async () => {
+  const handleSave = async () => {
     if (!name.trim() || frequency.length === 0) return
 
-    const newHabit = {
-      id: crypto.randomUUID(),
+    const payload = {
       name: name.trim(),
       color,
       frequency,
       created_at: createdAt,
     }
 
-    const { error } = await supabase.from('habits').insert([newHabit])
-    if (error) return console.error('Error adding habit:', error)
+    const { error } = isEditing
+      ? await supabase.from('habits').update(payload).match({ id: habit!.id })
+      : await supabase.from('habits').insert([{ id: crypto.randomUUID(), ...payload, active: true }])
+
+    if (error) return console.error('Error saving habit:', error)
 
     onAdd()
+    onClose()
+  }
+
+  const handleDeactivate = async () => {
+    if (!habit) return
+    if (!window.confirm(`Deactivate "${habit.name}"? It will be hidden from the dashboard but its history is kept.`)) return
+
+    const { error } = await supabase.from('habits').update({ active: false }).match({ id: habit.id })
+    if (error) return console.error('Error deactivating habit:', error)
+
+    onDeactivated?.()
     onClose()
   }
 
@@ -52,7 +85,7 @@ const AddHabit: React.FC<Props> = ({ onClose, onAdd }) => {
       <div className="bg-[#121212] text-gray-100 rounded-xl w-full max-w-lg p-6 border border-[#303030] shadow-2xl">
         <div className="flex justify-between items-center mb-6">
           <h3 className="text-xl font-bold flex items-center gap-3 text-white">
-            <PlusCircle className="w-5 h-5 text-gray-400" /> New Habit
+            <PlusCircle className="w-5 h-5 text-gray-400" /> {isEditing ? 'Edit Habit' : 'New Habit'}
           </h3>
           <button onClick={onClose} className="text-gray-400 hover:text-white transition">
             <X className="w-6 h-6" />
@@ -92,8 +125,8 @@ const AddHabit: React.FC<Props> = ({ onClose, onAdd }) => {
           <label className="text-sm font-medium text-gray-300">Start Date</label>
           <input
             type="date"
-            value={createdAt.split('T')[0]}
-            onChange={(e) => setCreatedAt(new Date(e.target.value).toISOString())}
+            value={createdAt}
+            onChange={(e) => setCreatedAt(e.target.value)}
             className="bg-[#0A0A0A] border border-[#303030] text-gray-100 rounded-lg px-3 py-1 text-sm focus:border-white outline-none"
           />
         </div>
@@ -108,11 +141,21 @@ const AddHabit: React.FC<Props> = ({ onClose, onAdd }) => {
           />
         </div>
 
-        <div className="flex justify-end gap-3 pt-4 border-t border-[#303030]">
-          <button onClick={onClose} className="px-4 py-2 text-gray-400 hover:text-white">Cancel</button>
-          <button onClick={handleAdd} className="px-6 py-2 rounded-lg bg-white text-black font-bold hover:bg-gray-200 shadow-lg shadow-white/5">
-            Create Habit
-          </button>
+        <div className="flex justify-between gap-3 pt-4 border-t border-[#303030]">
+          {isEditing ? (
+            <button
+              onClick={handleDeactivate}
+              className="px-4 py-2 rounded-lg text-red-400 hover:text-red-300 hover:bg-red-500/10 transition flex items-center gap-2 text-sm"
+            >
+              <Ban className="w-4 h-4" /> Deactivate
+            </button>
+          ) : <span />}
+          <div className="flex gap-3">
+            <button onClick={onClose} className="px-4 py-2 text-gray-400 hover:text-white">Cancel</button>
+            <button onClick={handleSave} className="px-6 py-2 rounded-lg bg-white text-black font-bold hover:bg-gray-200 shadow-lg shadow-white/5 flex items-center gap-2">
+              <Save className="w-4 h-4" /> {isEditing ? 'Save Changes' : 'Create Habit'}
+            </button>
+          </div>
         </div>
       </div>
     </div>

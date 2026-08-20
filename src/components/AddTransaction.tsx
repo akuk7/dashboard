@@ -3,6 +3,7 @@ import { X, PlusCircle, Save } from 'lucide-react'
 import supabase from '../lib/supabase'
 import type { Transaction, TransactionAccount, TransactionCategory, TransactionType } from '../types/transaction'
 import type { LoanInfo } from '../lib/loans'
+import { todayIST } from '../lib/dateUtils'
 
 type Props = {
   transaction: Transaction | null // null for new, populated for editing
@@ -24,8 +25,8 @@ const AddTransaction: React.FC<Props> = ({ transaction, prefill, accounts, categ
   const [accountId, setAccountId] = useState('')
   const [toAccountId, setToAccountId] = useState('')
   const [categoryId, setCategoryId] = useState('')
-  const [transactionDate, setTransactionDate] = useState(new Date().toISOString().split('T')[0])
-  const [preExisting, setPreExisting] = useState(false)
+  const [transactionDate, setTransactionDate] = useState(todayIST())
+  const [isBigLoan, setIsBigLoan] = useState(false)
   const [repaysTransactionId, setRepaysTransactionId] = useState('')
   const [error, setError] = useState<string | null>(null)
 
@@ -38,7 +39,7 @@ const AddTransaction: React.FC<Props> = ({ transaction, prefill, accounts, categ
       setToAccountId(transaction.to_account_id ?? '')
       setCategoryId(transaction.category_id ?? '')
       setTransactionDate(transaction.transaction_date)
-      setPreExisting(transaction.affects_balance === false)
+      setIsBigLoan(!transaction.is_temporary)
       setRepaysTransactionId(transaction.repays_transaction_id ?? '')
     } else {
       setDescription(prefill?.description ?? '')
@@ -47,8 +48,8 @@ const AddTransaction: React.FC<Props> = ({ transaction, prefill, accounts, categ
       setAccountId(prefill?.account_id ?? accounts[0]?.id ?? '')
       setToAccountId('')
       setCategoryId('')
-      setTransactionDate(new Date().toISOString().split('T')[0])
-      setPreExisting(false)
+      setTransactionDate(todayIST())
+      setIsBigLoan(false)
       setRepaysTransactionId(prefill?.repays_transaction_id ?? '')
     }
   }, [transaction, prefill, accounts])
@@ -61,7 +62,7 @@ const AddTransaction: React.FC<Props> = ({ transaction, prefill, accounts, categ
   const handleTypeChange = (nextType: TransactionType) => {
     setType(nextType)
     if (nextType !== 'internal_transfer') setToAccountId('')
-    if (nextType !== 'lend_out' && nextType !== 'lend_in') setPreExisting(false)
+    if (nextType !== 'lend_out' && nextType !== 'lend_in') setIsBigLoan(false)
     if (nextType !== 'repayment_received' && nextType !== 'repayment_made') setRepaysTransactionId('')
   }
 
@@ -97,7 +98,7 @@ const AddTransaction: React.FC<Props> = ({ transaction, prefill, accounts, categ
       to_account_id: isTransfer ? toAccountId : null,
       category_id: (isTransfer || isRepayment) ? null : (categoryId || null),
       transaction_date: transactionDate,
-      affects_balance: isLend ? !preExisting : true,
+      is_temporary: isLend ? !isBigLoan : true,
       repays_transaction_id: isRepayment ? repaysTransactionId : null,
     }
 
@@ -240,12 +241,12 @@ const AddTransaction: React.FC<Props> = ({ transaction, prefill, accounts, categ
           <label className="flex items-start gap-2 mb-4 text-sm text-gray-300 cursor-pointer">
             <input
               type="checkbox"
-              checked={preExisting}
-              onChange={(e) => setPreExisting(e.target.checked)}
+              checked={isBigLoan}
+              onChange={(e) => setIsBigLoan(e.target.checked)}
               className="mt-0.5"
             />
-            This was already {type === 'lend_out' ? 'lent out' : 'borrowed'} before I started tracking
-            (won&apos;t affect account balance, only Lent / Net Worth)
+            This is a big loan / arrears, not a small personal {type === 'lend_out' ? 'lend' : 'borrow'}
+            (won&apos;t affect account balance - only counted in Lent and Net Worth)
           </label>
         )}
 

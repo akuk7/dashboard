@@ -1,4 +1,5 @@
 import { useState, useEffect, lazy, Suspense } from 'react';
+import { BrowserRouter } from 'react-router-dom';
 import { type Session } from '@supabase/supabase-js';
 import { supabase } from './lib/supabase'; // Your Supabase client setup
 import AuthForm from './AuthForm';   // <--- Import the new Auth page
@@ -42,18 +43,20 @@ function App() {
   }
   return (
     <div className='w-100vw bg-[#000000]'>
-      <Suspense fallback={<div className="flex justify-center items-center h-screen text-gray-400">Loading...</div>}>
-        {!session ? (
-          // IF NO SESSION: Show the authentication form
-          <AuthForm />
-        ) : isMobile ? (
-          // IF LOGGED IN ON A PHONE: Show the mobile app shell
-          <MobileApp />
-        ) : (
-          // IF LOGGED IN ON DESKTOP: Show the normal content
-          <Dashboard />
-        )}
-      </Suspense>
+      <BrowserRouter>
+        <Suspense fallback={<div className="flex justify-center items-center h-screen text-gray-400">Loading...</div>}>
+          {!session ? (
+            // IF NO SESSION: Show the authentication form
+            <AuthForm />
+          ) : isMobile ? (
+            // IF LOGGED IN ON A PHONE: Show the mobile app shell
+            <MobileApp />
+          ) : (
+            // IF LOGGED IN ON DESKTOP: Show the normal content
+            <Dashboard />
+          )}
+        </Suspense>
+      </BrowserRouter>
     </div>
   );
 }

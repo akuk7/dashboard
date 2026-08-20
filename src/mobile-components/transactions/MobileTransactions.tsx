@@ -257,7 +257,7 @@ const MobileTransactions: React.FC = () => {
                       ? ` → ${accountsById[t.to_account_id] ?? 'Unknown'}`
                       : ''}
                     {t.category_id ? ` · ${categoriesById[t.category_id] ?? ''}` : ''}
-                    {!t.affects_balance ? ' · Pre-existing' : ''}
+                    {t.is_temporary && (t.type === 'lend_out' || t.type === 'lend_in') ? ' · Temporary' : ''}
                     {(t.type === 'lend_out' || t.type === 'lend_in') && outstandingByLoanId[t.id] !== undefined
                       ? ` · ${outstandingByLoanId[t.id].toFixed(2)} outstanding`
                       : ''}

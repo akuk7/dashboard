@@ -32,9 +32,10 @@ export interface Transaction {
   category_id: string | null
   transaction_date: string
   created_at: string
-  // False only for lend_out/lend_in transactions that already happened before tracking started -
-  // excluded from account balance / Net Balance, but still counted in Lent / Net Worth.
-  affects_balance: boolean
+  // True for lend_out/lend_in transactions that are small/personal - included in account balance
+  // and the combined Lent In/Out/Total row. False or null for big loans/arrears - excluded from
+  // balance, counted only in the Lent (non-temporary) box and Net Worth. Always true for non-lend types.
+  is_temporary: boolean | null
   // Set only for repayment_received/repayment_made - points at the lend_out/lend_in it settles.
   repays_transaction_id: string | null
 }

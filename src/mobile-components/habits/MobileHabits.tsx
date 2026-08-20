@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
-import { PlusCircle, Check, List, BarChart3 } from 'lucide-react'
+import { PlusCircle, Check, List, BarChart3, Pencil } from 'lucide-react'
 import supabase from '../../lib/supabase'
 import type { Habit } from '../../types/habit'
 import AddHabit from '../../components/AddHabit'
 import MobileHeader from '../MobileHeader'
+import { addDaysIST, dayOfWeekIST, datesEndingTodayIST, todayIST, toISTDateString, weekdayLetterIST } from '../../lib/dateUtils'
 
 type PeriodKeys = 'week' | 'month' | 'year'
 const PERIOD_DAYS: Record<PeriodKeys, number> = { week: 7, month: 30, year: 365 }
@@ -13,42 +14,19 @@ const TRACKER_DAYS = 5
 
 type HabitRecordRow = { habit_id: string; date: string; done: boolean }
 
-const formatDate = (d: Date) => d.toISOString().split('T')[0]
-
-const genRange = (days: number) => {
-  const res: string[] = []
-  const today = new Date()
-  for (let i = 0; i < days; i++) {
-    const dt = new Date(today)
-    dt.setDate(today.getDate() - i)
-    dt.setUTCHours(0, 0, 0, 0)
-    res.push(formatDate(dt))
-  }
-  return res
-}
-
-const generateTrackerDates = (days: number) => {
-  const arr: string[] = []
-  const today = new Date()
-  for (let i = days - 1; i >= 0; i--) {
-    const d = new Date(today)
-    d.setDate(today.getDate() - i)
-    arr.push(formatDate(d))
-  }
-  return arr
-}
+type ModalState = { mode: 'closed' } | { mode: 'create' } | { mode: 'edit'; habit: Habit }
 
 const MobileHabits: React.FC = () => {
   const [period, setPeriod] = useState<PeriodKeys>('week')
   const [habits, setHabits] = useState<Habit[]>([])
   const [records, setRecords] = useState<Record<string, Record<string, boolean>>>({})
-  const [showAdd, setShowAdd] = useState(false)
+  const [modalState, setModalState] = useState<ModalState>({ mode: 'closed' })
   const [view, setView] = useState<'list' | 'graph'>('list')
 
-  const trackerDates = useMemo(() => generateTrackerDates(TRACKER_DAYS), [])
+  const trackerDates = useMemo(() => datesEndingTodayIST(TRACKER_DAYS).reverse(), [])
 
   const loadHabits = async () => {
-    const { data } = await supabase.from('habits').select('*').order('created_at', { ascending: false })
+    const { data } = await supabase.from('habits').select('*').eq('active', true).order('created_at', { ascending: false })
     setHabits((data as Habit[]) || [])
   }
 
@@ -58,7 +36,7 @@ const MobileHabits: React.FC = () => {
 
   useEffect(() => {
     const loadRecords = async () => {
-      const dates = Array.from(new Set([...genRange(PERIOD_DAYS[period]), ...trackerDates]))
+      const dates = Array.from(new Set([...datesEndingTodayIST(PERIOD_DAYS[period]), ...trackerDates]))
       const { data, error } = await supabase.from('habit_records').select('habit_id,date,done').in('date', dates)
       if (error) {
         console.error('Error loading records:', error)
@@ -75,32 +53,28 @@ const MobileHabits: React.FC = () => {
   }, [period, trackerDates])
 
   const statPerHabit = useMemo(() => {
-    const today = new Date()
-    today.setUTCHours(0, 0, 0, 0)
+    const today = todayIST()
 
     return habits.map((h) => {
-      const habitStart = new Date(h.created_at)
-      habitStart.setUTCHours(0, 0, 0, 0)
+      const habitStart = toISTDateString(h.created_at)
       const daysInPeriod = PERIOD_DAYS[period]
       const datesToCheck: string[] = []
 
       for (let i = 0; i < daysInPeriod; i++) {
-        const dt = new Date(today)
-        dt.setDate(today.getDate() - i)
-        dt.setUTCHours(0, 0, 0, 0)
-        if (dt < habitStart) break
-        datesToCheck.push(formatDate(dt))
+        const d = addDaysIST(today, -i)
+        if (d < habitStart) break
+        datesToCheck.push(d)
       }
 
       const done = datesToCheck.reduce((acc, d) => {
-        const dayOfWeek = new Date(d).getDay()
+        const dayOfWeek = dayOfWeekIST(d)
         const isScheduled = h.frequency ? h.frequency.includes(dayOfWeek) : true
         const isDone = records[d]?.[h.id]
         return acc + (isDone && isScheduled ? 1 : 0)
       }, 0)
 
       const total = datesToCheck.filter((d) => {
-        const dayOfWeek = new Date(d).getDay()
+        const dayOfWeek = dayOfWeekIST(d)
         return h.frequency ? h.frequency.includes(dayOfWeek) : true
       }).length
 
@@ -214,20 +188,23 @@ const MobileHabits: React.FC = () => {
               <div className="flex flex-col gap-4 mt-3">
                 {habits.map((h) => (
                   <div key={h.id}>
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="w-2.5 h-2.5 rounded-full" style={{ background: h.color }} />
-                      <span className="text-sm font-medium text-white">{h.name}</span>
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full" style={{ background: h.color }} />
+                        <span className="text-sm font-medium text-white">{h.name}</span>
+                      </div>
+                      <button
+                        onClick={() => setModalState({ mode: 'edit', habit: h })}
+                        className="text-gray-500 hover:text-white"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
                     </div>
                     <div className="flex gap-2">
                       {trackerDates.map((d) => {
-                        const dateObj = new Date(d)
-                        const dayOfWeek = dateObj.getDay()
-                        const habitStart = new Date(h.created_at)
-                        habitStart.setUTCHours(0, 0, 0, 0)
-                        const checkDate = new Date(d)
-                        checkDate.setUTCHours(0, 0, 0, 0)
-                        const isScheduled =
-                          (h.frequency ? h.frequency.includes(dayOfWeek) : true) && checkDate >= habitStart
+                        const dayOfWeek = dayOfWeekIST(d)
+                        const habitStart = toISTDateString(h.created_at)
+                        const isScheduled = (h.frequency ? h.frequency.includes(dayOfWeek) : true) && d >= habitStart
                         const checked = !!(records[d] && records[d][h.id])
                         const bgColor = h.color || '#60a5fa'
 
@@ -243,7 +220,7 @@ const MobileHabits: React.FC = () => {
                             className="flex-1 flex flex-col items-center gap-1 py-2 rounded-lg"
                           >
                             <span className="text-[10px] text-gray-400">
-                              {dateObj.toLocaleDateString(undefined, { weekday: 'short' }).charAt(0)}
+                              {weekdayLetterIST(d)}
                             </span>
                             {isScheduled ? (
                               <Check
@@ -266,13 +243,20 @@ const MobileHabits: React.FC = () => {
       )}
 
       <button
-        onClick={() => setShowAdd(true)}
+        onClick={() => setModalState({ mode: 'create' })}
         className="fixed bottom-20 right-4 w-14 h-14 rounded-full bg-white text-black flex items-center justify-center shadow-xl"
       >
         <PlusCircle className="w-6 h-6" />
       </button>
 
-      {showAdd && <AddHabit onClose={() => setShowAdd(false)} onAdd={loadHabits} />}
+      {modalState.mode !== 'closed' && (
+        <AddHabit
+          habit={modalState.mode === 'edit' ? modalState.habit : null}
+          onClose={() => setModalState({ mode: 'closed' })}
+          onAdd={loadHabits}
+          onDeactivated={loadHabits}
+        />
+      )}
     </div>
   )
 }

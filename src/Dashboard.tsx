@@ -1,7 +1,5 @@
 import "./App.css";
 
-import BreakDashboard from "./components/BreakDashboard";
-import BreakTracker from "./components/BreakTracker";
 import DayCounter from "./components/DayCounter";
 import Watchlist from "./components/WatchList";
 import DigitalJournal from "./components/DigitalJournal";
@@ -60,13 +58,9 @@ function Dashboard() {
       />
       <TodoKanban />
 
-      <div className="flex w-[85vw] justify-start mt-10 gap-6" id="breaks">
-        <BreakTracker />
-        <BreakDashboard />
-        <div className="flex flex-col justify-between ml-auto">
-          <DayCounter />
-          <SpotifyPlayer />
-        </div>
+      <div className="flex w-[85vw] items-stretch mt-10 gap-4" id="breaks">
+        <DayCounter />
+        <SpotifyPlayer />
       </div>
       <Habits />
       <Transactions />
