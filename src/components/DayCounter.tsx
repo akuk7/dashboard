@@ -61,41 +61,34 @@ const DayCounter: React.FC = () => {
     const ACCENTS = ['#303030', '#444444', '#606060', '#888888']; 
 
     return (
-        <div className=" bg-[#0A0A0A] rounded-xl text-gray-100">
-            
+        <div className="flex grow basis-3/5 gap-4">
+            {dayCounts.map((milestone, index) => {
+                const accentColor = ACCENTS[index % ACCENTS.length];
+                const daysDisplay = milestone.passed ? 'ACHIEVED' : milestone.days.toLocaleString();
 
-            {/* CHANGED GRID LAYOUT: 1 column on small, 2 columns on medium, and 2 columns on large screens */}
-            <div className="w-[400px] grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4">
-                {dayCounts.map((milestone, index) => {
-                    const accentColor = ACCENTS[index % ACCENTS.length];
-                    const daysDisplay = milestone.passed ? 'ACHIEVED' : milestone.days.toLocaleString();
-
-                    return (
-                        <div 
-                            key={milestone.age} 
-                            className="py-3 px-4 rounded-xl bg-[#121212] border border-[#303030] transition-all duration-300"
-                            style={{ 
-                                boxShadow: `0 0 20px -5px ${accentColor}20`,
-                                borderLeft: `4px solid ${accentColor}`
-                            }}
-                        >
-                            <div className="text-sm font-semibold text-gray-400 mb-1 uppercase tracking-wider">
-                                {milestone.age} Years Old
-                            </div>
-                            
-                            <div className="text-5xl font-extrabold text-white font-mono leading-none">
-                                {daysDisplay}
-                            </div>
-                            
-                            <div className="mt-2 text-sm text-gray-500">
-                                {milestone.passed ? `Milestone reached.` : `Days Remaining`}
-                            </div>
+                return (
+                    <div
+                        key={milestone.age}
+                        className="flex-1 min-w-0 h-full flex flex-col items-start justify-center gap-2 py-3 px-4 rounded-xl bg-[#121212] border border-[#303030] transition-all duration-300"
+                        style={{
+                            boxShadow: `0 0 20px -5px ${accentColor}20`,
+                            borderLeft: `4px solid ${accentColor}`
+                        }}
+                    >
+                        <div className="text-sm font-semibold text-gray-400 uppercase tracking-wider truncate">
+                            {milestone.age} Years Old
                         </div>
-                    );
-                })}
-            </div>
-            
-    
+
+                        <div className="text-3xl md:text-4xl font-extrabold text-white font-mono leading-none truncate">
+                            {daysDisplay}
+                        </div>
+
+                        <div className="text-sm text-gray-500 truncate">
+                            {milestone.passed ? `Milestone reached.` : `Days Remaining`}
+                        </div>
+                    </div>
+                );
+            })}
         </div>
     );
 };

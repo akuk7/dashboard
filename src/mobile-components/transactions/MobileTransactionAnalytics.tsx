@@ -31,7 +31,7 @@ const MobileTransactionAnalytics: React.FC<Props> = ({ transactions, accounts, c
       map[a.id] = a.opening_balance
     })
     transactions.forEach((t) => {
-      if (!t.affects_balance) return
+      if (!t.is_temporary) return
       if (t.type === 'credit' || t.type === 'lend_in' || t.type === 'repayment_received') {
         map[t.account_id] = (map[t.account_id] ?? 0) + t.amount
       } else if (t.type === 'debit' || t.type === 'lend_out' || t.type === 'repayment_made') {
@@ -53,12 +53,20 @@ const MobileTransactionAnalytics: React.FC<Props> = ({ transactions, accounts, c
     () => ({
       lentOut: lendOutLoans.reduce((sum, l) => sum + Math.max(0, l.outstanding), 0),
       lentIn: lendInLoans.reduce((sum, l) => sum + Math.max(0, l.outstanding), 0),
+      lentOutNonTemp: lendOutLoans.filter((l) => !l.transaction.is_temporary).reduce((sum, l) => sum + Math.max(0, l.outstanding), 0),
+      lentInNonTemp: lendInLoans.filter((l) => !l.transaction.is_temporary).reduce((sum, l) => sum + Math.max(0, l.outstanding), 0),
     }),
     [lendOutLoans, lendInLoans]
   )
 
   const netWorth = netBalance + loanTotals.lentOut - loanTotals.lentIn
-  const netLent = loanTotals.lentOut - loanTotals.lentIn
+  // Net Balance already includes the cash effect of temporary (small/personal) loans. "Net (Settled)"
+  // projects what's left once those specific loans are cleared: temp lent-out money added back, temp borrowed money subtracted.
+  const netAfterTemp = (() => {
+    const lentOutTemp = loanTotals.lentOut - loanTotals.lentOutNonTemp
+    const lentInTemp = loanTotals.lentIn - loanTotals.lentInNonTemp
+    return netBalance + lentOutTemp - lentInTemp
+  })()
 
   const summary = useMemo(() => {
     let income = 0
@@ -74,7 +82,7 @@ const MobileTransactionAnalytics: React.FC<Props> = ({ transactions, accounts, c
   const categoryChart = useMemo(() => {
     const totals: Record<string, number> = {}
     transactions
-      .filter((t) => t.type === 'debit')
+      .filter((t) => t.type === 'debit' && t.transaction_date >= summaryStartDate)
       .forEach((t) => {
         const key = t.category_id ?? 'uncategorized'
         totals[key] = (totals[key] ?? 0) + t.amount
@@ -97,7 +105,7 @@ const MobileTransactionAnalytics: React.FC<Props> = ({ transactions, accounts, c
         },
       ],
     }
-  }, [transactions, categories])
+  }, [transactions, categories, summaryStartDate])
 
   const hasSpending = categoryChart.datasets[0].data.length > 0
 
@@ -109,12 +117,29 @@ const MobileTransactionAnalytics: React.FC<Props> = ({ transactions, accounts, c
           <p className={`text-base font-bold ${netBalance >= 0 ? 'text-white' : 'text-red-400'}`}>{netBalance.toFixed(2)}</p>
         </div>
         <div className="p-3 bg-[#121212] rounded-xl border border-[#303030]">
-          <p className="text-[11px] text-gray-500 mb-1">Lent</p>
-          <p className={`text-base font-bold ${netLent >= 0 ? 'text-amber-400' : 'text-cyan-400'}`}>{netLent.toFixed(2)}</p>
+          <p className="text-[11px] text-gray-500 mb-1">Net (Settled)</p>
+          <p className={`text-base font-bold ${netAfterTemp >= 0 ? 'text-white' : 'text-red-400'}`}>{netAfterTemp.toFixed(2)}</p>
         </div>
         <div className="p-3 bg-[#121212] rounded-xl border border-white/40">
           <p className="text-[11px] text-gray-500 mb-1">Net Worth</p>
           <p className={`text-base font-bold ${netWorth >= 0 ? 'text-white' : 'text-red-400'}`}>{netWorth.toFixed(2)}</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-2">
+        <div className="p-3 bg-[#121212] rounded-xl border border-[#303030]">
+          <p className="text-[11px] text-gray-500 mb-1">Lent In</p>
+          <p className="text-base font-bold text-cyan-400">{loanTotals.lentIn.toFixed(2)}</p>
+        </div>
+        <div className="p-3 bg-[#121212] rounded-xl border border-[#303030]">
+          <p className="text-[11px] text-gray-500 mb-1">Lent Out</p>
+          <p className="text-base font-bold text-amber-400">{loanTotals.lentOut.toFixed(2)}</p>
+        </div>
+        <div className="p-3 bg-[#121212] rounded-xl border border-[#303030]">
+          <p className="text-[11px] text-gray-500 mb-1">Lent Total</p>
+          <p className={`text-base font-bold ${(loanTotals.lentOut - loanTotals.lentIn) >= 0 ? 'text-amber-400' : 'text-cyan-400'}`}>
+            {(loanTotals.lentOut - loanTotals.lentIn).toFixed(2)}
+          </p>
         </div>
       </div>
 
@@ -127,7 +152,7 @@ const MobileTransactionAnalytics: React.FC<Props> = ({ transactions, accounts, c
         ))}
       </div>
 
-      <div>
+      <div className="p-4 bg-[#121212] rounded-xl border border-[#303030]">
         <div className="flex items-center justify-between mb-2">
           <p className="text-xs text-gray-500">Cash flow since</p>
           <input
@@ -137,36 +162,33 @@ const MobileTransactionAnalytics: React.FC<Props> = ({ transactions, accounts, c
             className="bg-[#0A0A0A] border border-[#303030] rounded-lg px-2 py-1 text-xs text-gray-300"
           />
         </div>
-        <div className="grid grid-cols-3 gap-2">
-          <div className="p-3 bg-[#121212] rounded-xl border border-[#303030]">
-            <p className="text-[11px] text-gray-500 mb-1">Income</p>
-            <p className="text-base font-bold text-green-400">{summary.income.toFixed(2)}</p>
+        <div className="grid grid-cols-3 gap-2 mb-4">
+          <div className="p-2 bg-[#0A0A0A] rounded-lg border border-[#303030]">
+            <p className="text-[10px] text-gray-500 mb-0.5">Income</p>
+            <p className="text-sm font-bold text-green-400 truncate">{summary.income.toFixed(2)}</p>
           </div>
-          <div className="p-3 bg-[#121212] rounded-xl border border-[#303030]">
-            <p className="text-[11px] text-gray-500 mb-1">Expense</p>
-            <p className="text-base font-bold text-red-400">{summary.expense.toFixed(2)}</p>
+          <div className="p-2 bg-[#0A0A0A] rounded-lg border border-[#303030]">
+            <p className="text-[10px] text-gray-500 mb-0.5">Expense</p>
+            <p className="text-sm font-bold text-red-400 truncate">{summary.expense.toFixed(2)}</p>
           </div>
-          <div className="p-3 bg-[#121212] rounded-xl border border-[#303030]">
-            <p className="text-[11px] text-gray-500 mb-1">Net</p>
-            <p className={`text-base font-bold ${summary.net >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+          <div className="p-2 bg-[#0A0A0A] rounded-lg border border-[#303030]">
+            <p className="text-[10px] text-gray-500 mb-0.5">Net</p>
+            <p className={`text-sm font-bold truncate ${summary.net >= 0 ? 'text-green-400' : 'text-red-400'}`}>
               {summary.net.toFixed(2)}
             </p>
           </div>
         </div>
-      </div>
 
-      <div className="p-4 bg-[#121212] rounded-xl border border-[#303030]">
-        <p className="text-sm font-bold text-white mb-2">Spending by Category</p>
         {hasSpending ? (
           <>
             <div style={{ height: '200px' }}>
               <Pie data={categoryChart} options={chartOptions} />
             </div>
-            <div className="flex flex-col gap-1 mt-3 text-xs text-gray-400">
+            <div className="grid grid-cols-2 gap-1 mt-3 text-xs text-gray-400">
               {categoryChart.labels.map((label, i) => (
-                <div key={label} className="flex items-center gap-2">
+                <div key={label} className="flex items-center gap-2 min-w-0">
                   <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: PALETTE[i % PALETTE.length] }} />
-                  {label}
+                  <span className="truncate">{label}</span>
                 </div>
               ))}
             </div>

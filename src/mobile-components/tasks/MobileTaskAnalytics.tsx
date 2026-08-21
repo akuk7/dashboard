@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import supabase from '../../lib/supabase'
 import type { TodoStatus } from '../../types/TodoTypes'
+import { addDaysIST, startOfWeekIST, todayIST } from '../../lib/dateUtils'
 
 const STATUS_COLORS: Record<TodoStatus, string> = {
   TODO: '#3B82F6',
@@ -14,20 +15,6 @@ const STATUS_LABELS: Record<TodoStatus, string> = {
 }
 const STATUS_ORDER: TodoStatus[] = ['TODO', 'IN_PROGRESS', 'DONE']
 
-const getCurrentSundayDate = () => {
-  const d = new Date()
-  const day = d.getUTCDay()
-  d.setUTCDate(d.getUTCDate() - day)
-  d.setUTCHours(0, 0, 0, 0)
-  return d.toISOString()
-}
-
-const getStartOfTodayUTC = () => {
-  const d = new Date()
-  d.setUTCHours(0, 0, 0, 0)
-  return d.toISOString()
-}
-
 const MobileTaskAnalytics: React.FC = () => {
   const [taskCounts, setTaskCounts] = useState<Record<TodoStatus, number>>({ TODO: 0, IN_PROGRESS: 0, DONE: 0 })
   const [overdueTasks, setOverdueTasks] = useState(0)
@@ -35,10 +22,16 @@ const MobileTaskAnalytics: React.FC = () => {
 
   const load = useCallback(async () => {
     setIsLoading(true)
-    const currentSunday = getCurrentSundayDate()
-    const startOfToday = getStartOfTodayUTC()
+    // Monday-anchored week, evaluated in IST.
+    const weekStart = startOfWeekIST()
+    const weekEnd = addDaysIST(weekStart, 7) // exclusive upper bound
+    const startOfToday = todayIST()
 
-    const { data, error } = await supabase.from('todos').select('status').gte('expected_complete_at', currentSunday)
+    const { data, error } = await supabase
+      .from('todos')
+      .select('status')
+      .gte('expected_complete_at', weekStart)
+      .lt('expected_complete_at', weekEnd)
     if (error) console.error('Chart data error:', error)
 
     const counts: Record<TodoStatus, number> = { TODO: 0, IN_PROGRESS: 0, DONE: 0 }

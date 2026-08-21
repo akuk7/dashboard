@@ -1,43 +1,42 @@
 import React, { useState, useEffect } from 'react';
 import { X, Save,  Trash2 } from 'lucide-react';
 import supabase from '../lib/supabase';
-import type { TodoTask, TodoStatus } from '../types/TodoTypes';
+import type { TodoTask, TodoStatus, TodoCategory } from '../types/TodoTypes';
+import { todayIST } from '../lib/dateUtils';
 
 interface Props {
     task: TodoTask | null; // Null for new task, object for editing
+    categories: TodoCategory[];
     onClose: () => void;
     onSave: () => void; // Parent component reloads data after save
 }
 
-const formatDate = (d: Date | string) => {
-    // Ensure date is in YYYY-MM-DD format for input type="date"
-    const dateObj = typeof d === 'string' ? new Date(d) : d;
-    return dateObj.toISOString().split('T')[0];
-};
-
-const TodoEditorModal: React.FC<Props> = ({ task, onClose, onSave }) => {
+const TodoEditorModal: React.FC<Props> = ({ task, categories, onClose, onSave }) => {
     const isEditing = task !== null;
 
     const [title, setTitle] = useState('');
     const [description, setDescription] = useState('');
-    const [expectedCompleteAt, setExpectedCompleteAt] = useState(formatDate(new Date()));
+    const [expectedCompleteAt, setExpectedCompleteAt] = useState(todayIST());
     const [status, setStatus] = useState<TodoStatus>('TODO');
+    const [categoryId, setCategoryId] = useState('');
 
     useEffect(() => {
         if (task) {
             setTitle(task.title);
             setDescription(task.description || '');
-            // Only set expected date if it exists
+            // Only set expected date if it exists - it's already a plain YYYY-MM-DD string
             if (task.expected_complete_at) {
-                 setExpectedCompleteAt(formatDate(task.expected_complete_at));
+                 setExpectedCompleteAt(task.expected_complete_at);
             }
             setStatus(task.status);
+            setCategoryId(task.category_id ?? '');
         } else {
             // Reset for new task
             setTitle('');
             setDescription('');
-            setExpectedCompleteAt(formatDate(new Date()));
+            setExpectedCompleteAt(todayIST());
             setStatus('TODO');
+            setCategoryId('');
         }
     }, [task]);
 
@@ -53,6 +52,7 @@ const TodoEditorModal: React.FC<Props> = ({ task, onClose, onSave }) => {
             description: description.trim() || null,
             expected_complete_at: expectedCompleteAt,
             status: status,
+            category_id: categoryId || null,
         };
 
         if (isEditing && task) {
@@ -70,7 +70,7 @@ const TodoEditorModal: React.FC<Props> = ({ task, onClose, onSave }) => {
             // INSERT (order_index is placeholder for simplicity; realistic app needs to calculate last index)
             const { error } = await supabase
                 .from('todos')
-                .insert([{ ...taskData, order_index: 0 }]); 
+                .insert([{ ...taskData, order_index: 0 }]);
 
             if (error) {
                 console.error('Error creating task:', error);
@@ -80,10 +80,10 @@ const TodoEditorModal: React.FC<Props> = ({ task, onClose, onSave }) => {
 
         onSave(); // Close modal and trigger parent reload
     };
-    
+
     const handleDelete = async () => {
         if (!window.confirm('Are you sure you want to delete this task?')) return;
-        
+
         if (task) {
             const { error } = await supabase.from('todos').delete().match({ id: task.id });
             if (error) {
@@ -98,7 +98,7 @@ const TodoEditorModal: React.FC<Props> = ({ task, onClose, onSave }) => {
         // Modal Backdrop
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
             <div className="bg-[#121212] text-gray-100 rounded-xl w-full max-w-lg p-6 border border-[#303030] shadow-2xl shadow-black/50">
-                
+
                 <div className="flex justify-between items-center mb-4 border-b border-[#303030] pb-3">
                     <h3 className="text-xl font-bold flex items-center gap-2 text-white">
                         {isEditing ? 'Edit Task' : 'New Task'}
@@ -130,7 +130,7 @@ const TodoEditorModal: React.FC<Props> = ({ task, onClose, onSave }) => {
                         </select>
                     </div>
                 )}
-                
+
                 <label className="block mb-1 text-sm text-gray-400">Title</label>
                 <input
                     type="text"
@@ -148,7 +148,19 @@ const TodoEditorModal: React.FC<Props> = ({ task, onClose, onSave }) => {
                     rows={3}
                     placeholder="Details about the task..."
                 />
-                
+
+                <label className="block mb-1 text-sm text-gray-400">Category (Optional)</label>
+                <select
+                    value={categoryId}
+                    onChange={(e) => setCategoryId(e.target.value)}
+                    className="w-full bg-[#0A0A0A] border border-[#303030] focus:border-white rounded-lg px-4 py-2 mb-4 text-white transition"
+                >
+                    <option value="">None</option>
+                    {categories.map((c) => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                </select>
+
                 <label className="block mb-1 text-sm text-gray-400">Expected Completion Date</label>
                 <input
                     type="date"
@@ -162,7 +174,7 @@ const TodoEditorModal: React.FC<Props> = ({ task, onClose, onSave }) => {
                         onClick={handleSave}
                         className="px-6 py-2 rounded-lg bg-white text-black font-semibold hover:bg-gray-200 transition flex items-center gap-2 shadow-lg shadow-white/10"
                     >
-                        <Save className="w-5 h-5" /> 
+                        <Save className="w-5 h-5" />
                         {isEditing ? 'Save Changes' : 'Create Task'}
                     </button>
                 </div>

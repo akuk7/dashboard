@@ -7,6 +7,7 @@ import { Chart as ChartJS, ArcElement, Tooltip, Legend } from "chart.js";
 import supabase from "../lib/supabase";
 
 import type { TodoStatus } from "../types/TodoTypes";
+import { addDaysIST, startOfWeekIST, todayIST } from "../lib/dateUtils";
 
 ChartJS.register(ArcElement, Tooltip, Legend);
 
@@ -18,39 +19,17 @@ const CHART_COLORS = {
   IN_PROGRESS: "#ac6bd2", // Darker Blue
 
   DONE: "#10B981",
-  
+
   DUE:"#ff5555",// Green
 
   DEFAULT: "#4B5563", // Gray
 };
 
-// Helper to find the start of the current week (Sunday)
-
-const getCurrentSundayDate = () => {
-  const d = new Date();
-
-  // 1. Calculate the day offset using UTC day (0 = Sunday)
-
-  const day = d.getUTCDay();
-
-  // 2. Set the date back to the UTC Sunday
-
-  d.setUTCDate(d.getUTCDate() - day);
-
-  // 3. Anchor the time to the absolute start of the UTC day
-
-  d.setUTCHours(0, 0, 0, 0);
-
-
-  return d.toISOString();
-};
-const getStartOfTodayUTC = () => {
-    const today = new Date();
-    today.setUTCHours(0, 0, 0, 0); 
-    return today.toISOString();
+type Props = {
+  refreshToken?: number;
 };
 
-const WeeklyTaskDistribution: React.FC = () => {
+const WeeklyTaskDistribution: React.FC<Props> = ({ refreshToken }) => {
   const [taskCounts, setTaskCounts] = useState<Record<TodoStatus, number>>({
     TODO: 0,
     IN_PROGRESS: 0,
@@ -62,9 +41,11 @@ const[overdueTasks, setTotalOverdueCount] = useState(0);
   const loadWeeklyTaskCounts = useCallback(async () => {
     setIsLoading(true);
 
-    const currentSunday = getCurrentSundayDate();
-const startOfToday = getStartOfTodayUTC();
-    // Fetch ALL tasks created this week (since Sunday)
+    // Monday-anchored week, evaluated in IST.
+    const weekStart = startOfWeekIST();
+    const weekEnd = addDaysIST(weekStart, 7); // exclusive upper bound
+    const startOfToday = todayIST();
+    // Fetch tasks due this week (Monday through Sunday)
 
     const { data, error } = await supabase
 
@@ -72,7 +53,8 @@ const startOfToday = getStartOfTodayUTC();
 
       .select("status")
 
-      .gte("expected_complete_at", currentSunday);
+      .gte("expected_complete_at", weekStart)
+      .lt("expected_complete_at", weekEnd);
 
 
     if (error) {
@@ -93,12 +75,12 @@ const startOfToday = getStartOfTodayUTC();
 
     setTaskCounts(counts);
 const activeStatuses: TodoStatus[] = ['TODO', 'IN_PROGRESS'];
-        
+
         const { count, error: backlogError } = await supabase
             .from('todos')
             .select('id', { count: 'exact' })
             .in('status', activeStatuses) // Must be active
-            .lt('expected_complete_at', startOfToday); // Must be due *before* today
+            .lt('expected_complete_at', startOfToday); // Must be due *before* today (IST)
 
         if (backlogError) {
             console.error("Backlog count error:", backlogError);
@@ -106,14 +88,13 @@ const activeStatuses: TodoStatus[] = ['TODO', 'IN_PROGRESS'];
         } else {
             setTotalOverdueCount(count || 0);
         }
-        
+
         setIsLoading(false);
-    setIsLoading(false);
   }, []);
 
   useEffect(() => {
     loadWeeklyTaskCounts();
-  }, [loadWeeklyTaskCounts]);
+  }, [loadWeeklyTaskCounts, refreshToken]);
 
   const chartData = useMemo(() => {
     const data = [taskCounts.TODO, taskCounts.IN_PROGRESS, taskCounts.DONE,overdueTasks];
@@ -135,7 +116,7 @@ const activeStatuses: TodoStatus[] = ['TODO', 'IN_PROGRESS'];
         },
       ],
     };
-  }, [taskCounts]);
+  }, [taskCounts, overdueTasks]);
 
   const chartOptions = useMemo(
     () => ({

@@ -1,12 +1,14 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import type { DropResult } from "@hello-pangea/dnd";
-import { PlusCircle, Edit, AlertTriangle, ListTodo } from "lucide-react";
+import { PlusCircle, Edit, AlertTriangle, ListTodo, Tag } from "lucide-react";
 import supabase from "../lib/supabase";
-import type { TodoTask, TodoStatus } from "../types/TodoTypes";
+import type { TodoTask, TodoStatus, TodoCategory } from "../types/TodoTypes";
 // Assuming you have a file structure where TodoEditorModel is accessible
 import TodoEditorModal from "../models/TodoEditorModel";
+import TodoCategoryModal from "../models/TodoCategoryModel";
 import WeeklyTaskDistribution from "../models/WeeklyTaskDistribution";
+import { diffDaysIST, formatDisplayIST, todayIST } from "../lib/dateUtils";
 
 // Helper to get date strings for last 7 days (for DONE filtering)
 const getLastWeekDate = () => {
@@ -24,6 +26,9 @@ const CHART_COLORS = {
 
 const TodoKanban: React.FC = () => {
   const [tasks, setTasks] = useState<Record<string, TodoTask>>({});
+  const [categories, setCategories] = useState<TodoCategory[]>([]);
+  const [categoryFilter, setCategoryFilter] = useState('all');
+  const [showAddCategory, setShowAddCategory] = useState(false);
   const [columns, setColumns] = useState<
     Record<TodoStatus, { id: TodoStatus; title: string; taskIds: string[] }>
   >({
@@ -33,6 +38,19 @@ const TodoKanban: React.FC = () => {
   });
   const [isLoading, setIsLoading] = useState(false);
   const [editorTask, setEditorTask] = useState<TodoTask | "NEW" | null>(null);
+  const [refreshToken, setRefreshToken] = useState(0);
+  const bumpRefresh = () => setRefreshToken((t) => t + 1);
+
+  const categoriesById = useMemo(() => {
+    const map: Record<string, TodoCategory> = {};
+    categories.forEach((c) => { map[c.id] = c; });
+    return map;
+  }, [categories]);
+
+  const loadCategories = useCallback(async () => {
+    const { data } = await supabase.from('todo_categories').select('*').order('created_at', { ascending: true });
+    setCategories((data as TodoCategory[]) || []);
+  }, []);
 
   // --- FETCH DATA (FIXED LOGIC) ---
   const loadTasks = useCallback(async () => {
@@ -45,10 +63,10 @@ const TodoKanban: React.FC = () => {
     .from("todos")
     .select("*")
     .or(`status.neq.DONE, and(status.eq.DONE, completed_at.gte.${lastWeek})`)
-    
+
     // 1. Sort by expected_complete_at: ASC (Ascending = earliest date first)
     // 2. Add 'order_index' as a secondary sort key in case due dates are the same.
-    .order("expected_complete_at", { ascending: true }) 
+    .order("expected_complete_at", { ascending: true })
     .order("order_index", { ascending: true });
 
     const fetchedTasks = (data as TodoTask[]) || [];
@@ -81,7 +99,25 @@ const TodoKanban: React.FC = () => {
 
   useEffect(() => {
     loadTasks();
-  }, [loadTasks]);
+    loadCategories();
+  }, [loadTasks, loadCategories]);
+
+  const handleCreateCategory = async (name: string, color: string) => {
+    const { data, error } = await supabase
+      .from('todo_categories')
+      .insert([{ name, color }])
+      .select('*')
+      .single();
+
+    if (error) {
+      console.error('Error creating category:', error);
+      alert('Could not create category (name may already exist).');
+      return;
+    }
+
+    setCategories((prev) => [...prev, data as TodoCategory]);
+    setShowAddCategory(false);
+  };
 
   // --- DND LOGIC ---
 
@@ -149,6 +185,7 @@ const TodoKanban: React.FC = () => {
       .update(updatedTask)
       .match({ id: draggableId });
     if (error) console.error("DB update error:", error);
+    bumpRefresh();
   };
 
   // --- UI HELPERS ---
@@ -159,12 +196,7 @@ const TodoKanban: React.FC = () => {
     if (!dateString) return false;
     if (status === "DONE") return false;
 
-    const expectedDate = new Date(dateString);
-    const today = new Date();
-    expectedDate.setHours(0, 0, 0, 0);
-    today.setHours(0, 0, 0, 0);
-
-    return expectedDate.getTime() < today.getTime();
+    return dateString < todayIST();
   };
 
   // --- Updated renderDateInfo function ---
@@ -184,16 +216,11 @@ const TodoKanban: React.FC = () => {
     // 1. Determine priority states
     const overdue = isOverdue(task.expected_complete_at, task.status);
 
-    // Check if task is DUE SOON: Due today, tomorrow, or the day after (3 days total)
-    // 3 days = 3 * 24 * 60 * 60 * 1000 milliseconds
-    const dueTimeLimit = 3 * 24 * 60 * 60 * 1000;
-
+    // Check if task is DUE SOON: Due today, tomorrow, or the day after (3 days total), in IST.
     let isDueSoon = false;
     if (task.status !== "DONE" && task.expected_complete_at) {
-      const expectedTime = new Date(task.expected_complete_at).getTime();
-      const now = new Date().getTime();
-      // Check if the due date is in the future AND within the 3-day window
-      if (expectedTime >= now && expectedTime <= now + dueTimeLimit) {
+      const daysUntilDue = diffDaysIST(task.expected_complete_at, todayIST());
+      if (daysUntilDue >= 0 && daysUntilDue <= 3) {
         isDueSoon = true;
       }
     }
@@ -224,9 +251,7 @@ const TodoKanban: React.FC = () => {
             <span className="text-gray-500">{primaryLabel}:</span>
             <span className={`flex items-center gap-1 ${textColor}`}>
               {icon}
-              {primaryDateStr
-                ? new Date(primaryDateStr).toLocaleDateString()
-                : "N/A"}
+              {formatDisplayIST(primaryDateStr)}
             </span>
           </div>
         )}
@@ -236,9 +261,7 @@ const TodoKanban: React.FC = () => {
           <div className="flex justify-between items-center text-gray-500">
             <span className="text-gray-500">{secondaryLabel}</span>
             <span className="text-gray-500">
-              {secondaryDateStr
-                ? new Date(secondaryDateStr).toLocaleDateString()
-                : "N/A"}
+              {formatDisplayIST(secondaryDateStr)}
             </span>
           </div>
         )}
@@ -253,24 +276,45 @@ const TodoKanban: React.FC = () => {
       {editorTask && (
         <TodoEditorModal
           task={editorTask === "NEW" ? null : editorTask}
+          categories={categories}
           onClose={() => setEditorTask(null)}
           onSave={() => {
             setEditorTask(null);
             loadTasks();
+            bumpRefresh();
           }}
         />
+      )}
+      {showAddCategory && (
+        <TodoCategoryModal onClose={() => setShowAddCategory(false)} onCreate={handleCreateCategory} />
       )}
 
       <div className="flex justify-between items-center mb-2 border-b border-[#303030] pb-2">
         <h3 className="text-xl font-bold h-full flex items-center self-end gap-2 text-white ">
           <ListTodo className="w-6 h-6 text-gray-400" /> Task Manager
         </h3>
-        <button
-          onClick={() => setEditorTask("NEW")}
-          className="px-4 py-1.5 rounded-lg bg-white text-black font-semibold hover:bg-gray-200 transition flex items-center gap-2 shadow-lg shadow-white/10"
-        >
-          <PlusCircle className="w-5 h-5" /> Add Task
-        </button>
+        <div className="flex items-center gap-3">
+          <select
+            value={categoryFilter}
+            onChange={(e) => setCategoryFilter(e.target.value)}
+            className="bg-[#121212] border border-[#303030] rounded-lg px-3 py-1.5 text-gray-300 focus:border-white transition text-sm"
+          >
+            <option value="all">All Categories</option>
+            {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+          <button
+            onClick={() => setShowAddCategory(true)}
+            className="px-3 py-1.5 rounded-lg bg-[#121212] text-gray-300 hover:bg-[#303030] transition border border-[#303030] text-sm"
+          >
+            + Category
+          </button>
+          <button
+            onClick={() => setEditorTask("NEW")}
+            className="px-4 py-1.5 rounded-lg bg-white text-black font-semibold hover:bg-gray-200 transition flex items-center gap-2 shadow-lg shadow-white/10"
+          >
+            <PlusCircle className="w-5 h-5" /> Add Task
+          </button>
+        </div>
       </div>
 
       {isLoading ? (
@@ -282,9 +326,9 @@ const TodoKanban: React.FC = () => {
           <div className="flex flex-col sm:flex-row gap-4 flex-1 min-w-0">
             {["TODO", "IN_PROGRESS", "DONE"].map((columnId: string) => {
               const column = columns[columnId as TodoStatus];
-              const tasksInColumn = column.taskIds.map(
-                (taskId) => tasks[taskId]
-              );
+              const tasksInColumn = column.taskIds
+                .map((taskId) => tasks[taskId])
+                .filter((t) => categoryFilter === 'all' || t.category_id === categoryFilter);
 
               return (
                 <Droppable droppableId={column.id} key={column.id}>
@@ -337,6 +381,17 @@ const TodoKanban: React.FC = () => {
                                   <Edit className="w-4 h-4" />
                                 </button>
                               </div>
+                              {task.category_id && categoriesById[task.category_id] && (
+                                <span
+                                  className="inline-flex items-center gap-1 mt-1.5 px-2 py-0.5 rounded-full text-[10px] font-medium"
+                                  style={{
+                                    backgroundColor: `${categoriesById[task.category_id].color}20`,
+                                    color: categoriesById[task.category_id].color,
+                                  }}
+                                >
+                                  <Tag className="w-2.5 h-2.5" /> {categoriesById[task.category_id].name}
+                                </span>
+                              )}
                               {task.description && (
                                 <p className="text-xs text-gray-500 mt-1">
                                   {task.description.substring(0, 50)}...
@@ -359,7 +414,7 @@ const TodoKanban: React.FC = () => {
 
           </div>
           <div className="w-full lg:w-85 shrink-0">
-            <WeeklyTaskDistribution />
+            <WeeklyTaskDistribution refreshToken={refreshToken} />
           </div>
         </div>
         </DragDropContext>

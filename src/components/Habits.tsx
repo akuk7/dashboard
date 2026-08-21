@@ -1,16 +1,17 @@
 import { useState } from "react";
-import HabitDashboard from "./HabitDashboard";
 import HabitTracker from "./HabitTracker";
 import AddHabit from "./AddHabit";
 import { PlusCircle } from "lucide-react";
+import type { Habit } from "../types/habit";
 type PeriodKeys = 'week' | 'month' | 'year';
+
+type ModalState = { mode: 'closed' } | { mode: 'create' } | { mode: 'edit'; habit: Habit }
+
 const Habits:React.FC = () => {
       const [period, setPeriod] = useState<PeriodKeys>('month')
-        const [showAdd, setShowAdd] = useState(false)
-         const onAddHabit = () => {
-  
-    setShowAdd(false)
-  }
+        const [modalState, setModalState] = useState<ModalState>({ mode: 'closed' })
+        const [refreshToken, setRefreshToken] = useState(0)
+        const bumpRefresh = () => setRefreshToken(t => t + 1)
   return (
     <div className=" w-[85vw]   mt-10 gap-6" >
         <div className="flex justify-between items-center mb-2 border-b border-[#303030] pb-2">
@@ -28,7 +29,7 @@ const Habits:React.FC = () => {
           </select>
 
           <button
-            onClick={() => setShowAdd(true)}
+            onClick={() => setModalState({ mode: 'create' })}
             // Add Habit button: White/Gray only
             className="inline-flex items-center gap-2 px-4 py-2 bg-[#ffffff] text-black rounded-lg font-medium "
           >
@@ -36,11 +37,20 @@ const Habits:React.FC = () => {
           </button>
         </div>
       </div>
-      <div className="flex flex-row justify-between align-top">
 
-      <HabitDashboard period={period} setPeriod={setPeriod}/>
-      <HabitTracker />
-      </div>
-       {showAdd && <AddHabit onClose={() => setShowAdd(false)} onAdd={onAddHabit} />}
+      <HabitTracker
+        period={period}
+        refreshToken={refreshToken}
+        onChange={bumpRefresh}
+        onEditHabit={(habit) => setModalState({ mode: 'edit', habit })}
+      />
+       {modalState.mode !== 'closed' && (
+         <AddHabit
+           habit={modalState.mode === 'edit' ? modalState.habit : null}
+           onClose={() => setModalState({ mode: 'closed' })}
+           onAdd={bumpRefresh}
+           onDeactivated={bumpRefresh}
+         />
+       )}
       </div>)}
-export default Habits;    
+export default Habits;

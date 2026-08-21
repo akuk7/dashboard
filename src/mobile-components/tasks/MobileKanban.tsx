@@ -1,12 +1,13 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd'
 import type { DropResult } from '@hello-pangea/dnd'
-import { PlusCircle, List, BarChart3, AlertTriangle } from 'lucide-react'
+import { PlusCircle, List, BarChart3, AlertTriangle, Tag } from 'lucide-react'
 import supabase from '../../lib/supabase'
-import type { TodoTask, TodoStatus } from '../../types/TodoTypes'
+import type { TodoTask, TodoStatus, TodoCategory } from '../../types/TodoTypes'
 import TodoEditorModal from '../../models/TodoEditorModel'
 import MobileHeader from '../MobileHeader'
 import MobileTaskAnalytics from './MobileTaskAnalytics'
+import { formatDisplayIST, todayIST } from '../../lib/dateUtils'
 
 const STATUS_COLORS: Record<TodoStatus, string> = {
   TODO: '#3B82F6',
@@ -28,15 +29,13 @@ const getLastWeekDate = () => {
 
 const isOverdue = (dateString: string | null, status: TodoStatus): boolean => {
   if (!dateString || status === 'DONE') return false
-  const expected = new Date(dateString)
-  const today = new Date()
-  expected.setHours(0, 0, 0, 0)
-  today.setHours(0, 0, 0, 0)
-  return expected.getTime() < today.getTime()
+  return dateString < todayIST()
 }
 
 const MobileKanban: React.FC = () => {
   const [tasks, setTasks] = useState<Record<string, TodoTask>>({})
+  const [categories, setCategories] = useState<TodoCategory[]>([])
+  const [categoryFilter, setCategoryFilter] = useState('all')
   const [columns, setColumns] = useState<Record<TodoStatus, { id: TodoStatus; taskIds: string[] }>>({
     TODO: { id: 'TODO', taskIds: [] },
     IN_PROGRESS: { id: 'IN_PROGRESS', taskIds: [] },
@@ -44,6 +43,17 @@ const MobileKanban: React.FC = () => {
   })
   const [view, setView] = useState<'list' | 'graph'>('list')
   const [editorTask, setEditorTask] = useState<TodoTask | 'NEW' | null>(null)
+
+  const categoriesById = useMemo(() => {
+    const map: Record<string, TodoCategory> = {}
+    categories.forEach((c) => { map[c.id] = c })
+    return map
+  }, [categories])
+
+  const loadCategories = useCallback(async () => {
+    const { data } = await supabase.from('todo_categories').select('*').order('created_at', { ascending: true })
+    setCategories((data as TodoCategory[]) || [])
+  }, [])
 
   const loadTasks = useCallback(async () => {
     const lastWeek = getLastWeekDate()
@@ -71,7 +81,8 @@ const MobileKanban: React.FC = () => {
 
   useEffect(() => {
     loadTasks()
-  }, [loadTasks])
+    loadCategories()
+  }, [loadTasks, loadCategories])
 
   const onDragEnd = async (result: DropResult) => {
     const { destination, source, draggableId } = result
@@ -140,11 +151,24 @@ const MobileKanban: React.FC = () => {
       {view === 'graph' ? (
         <MobileTaskAnalytics />
       ) : (
-        <DragDropContext onDragEnd={onDragEnd}>
-          <div className="flex flex-col gap-4 px-4 pt-4">
+        <>
+          <div className="px-4 pt-4">
+            <select
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              className="w-full bg-[#121212] border border-[#303030] rounded-lg px-3 py-2 text-sm text-gray-300"
+            >
+              <option value="all">All Categories</option>
+              {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </div>
+          <DragDropContext onDragEnd={onDragEnd}>
+            <div className="flex flex-col gap-4 px-4 pt-3">
             {STATUS_ORDER.map((statusId) => {
               const column = columns[statusId]
-              const tasksInColumn = column.taskIds.map((id) => tasks[id])
+              const tasksInColumn = column.taskIds
+                .map((id) => tasks[id])
+                .filter((t) => categoryFilter === 'all' || t.category_id === categoryFilter)
               return (
                 <div key={statusId} className="bg-[#121212] rounded-xl border border-[#303030] p-3">
                   <div className="flex items-center gap-2 mb-3">
@@ -170,6 +194,17 @@ const MobileKanban: React.FC = () => {
                                 }`}
                               >
                                 <p className="text-sm font-semibold text-white">{task.title}</p>
+                                {task.category_id && categoriesById[task.category_id] && (
+                                  <span
+                                    className="inline-flex items-center gap-1 mt-1.5 px-2 py-0.5 rounded-full text-[10px] font-medium"
+                                    style={{
+                                      backgroundColor: `${categoriesById[task.category_id].color}20`,
+                                      color: categoriesById[task.category_id].color,
+                                    }}
+                                  >
+                                    <Tag className="w-2.5 h-2.5" /> {categoriesById[task.category_id].name}
+                                  </span>
+                                )}
                                 {task.expected_complete_at && (
                                   <p
                                     className={`text-xs mt-1 flex items-center gap-1 ${
@@ -181,7 +216,7 @@ const MobileKanban: React.FC = () => {
                                     {isOverdue(task.expected_complete_at, task.status) && (
                                       <AlertTriangle className="w-3 h-3" />
                                     )}
-                                    Due {new Date(task.expected_complete_at).toLocaleDateString()}
+                                    Due {formatDisplayIST(task.expected_complete_at)}
                                   </p>
                                 )}
                               </div>
@@ -196,8 +231,9 @@ const MobileKanban: React.FC = () => {
                 </div>
               )
             })}
-          </div>
-        </DragDropContext>
+            </div>
+          </DragDropContext>
+        </>
       )}
 
       <button
@@ -210,6 +246,7 @@ const MobileKanban: React.FC = () => {
       {editorTask && (
         <TodoEditorModal
           task={editorTask === 'NEW' ? null : editorTask}
+          categories={categories}
           onClose={() => setEditorTask(null)}
           onSave={() => {
             setEditorTask(null)
