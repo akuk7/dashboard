@@ -5,8 +5,9 @@ import MobileHabits from './habits/MobileHabits'
 import MobileKanban from './tasks/MobileKanban'
 import MobileWatchlist from './watchlist/MobileWatchlist'
 import MobileTransactions from './transactions/MobileTransactions'
+import MobileWorkouts from './workouts/MobileWorkouts'
 
-export type MobileTab = 'watchlist' | 'habits' | 'tasks' | 'transactions'
+export type MobileTab = 'watchlist' | 'habits' | 'tasks' | 'transactions' | 'workouts'
 
 const MobileApp: React.FC = () => {
   useEffect(() => {
@@ -26,6 +27,7 @@ const MobileApp: React.FC = () => {
         <Route path="/habits" element={<MobileHabits />} />
         <Route path="/tasks" element={<MobileKanban />} />
         <Route path="/transactions" element={<MobileTransactions />} />
+        <Route path="/workouts" element={<MobileWorkouts />} />
         <Route path="*" element={<Navigate to="/watchlist" replace />} />
       </Routes>
       <BottomNav />

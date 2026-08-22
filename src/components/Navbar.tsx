@@ -4,7 +4,6 @@ import {
   ListTodo,
   BookOpen,
   CheckSquare,
-  Clock,
   Clapperboard,
   Music,
   Home,
@@ -12,6 +11,7 @@ import {
   Newspaper,
   Terminal,
   Wallet,
+  Dumbbell,
 } from "lucide-react";
 
 // 💡 NEW: Import the Supabase client (adjust the path if needed)
@@ -33,10 +33,10 @@ interface NavBarProps {
 const NAV_ITEMS: NavItem[] = [
   { id: "home", title: "Home", icon: Home },
   { id: "todo", title: "ToDo", icon: ListTodo },
-  { id: "breaks", title: "Breaks", icon: Clock },
   { id: "music", title: "Music", icon: Music },
   { id: "habits", title: "Habits", icon: CheckSquare },
   { id: "transactions", title: "Transactions", icon: Wallet },
+  { id: "workouts", title: "Workouts", icon: Dumbbell },
   { id: "journal", title: "Journal", icon: BookOpen },
   { id: "movies", title: "Movies", icon: Clapperboard },
   { id: "newspaper", title: "Newspaper", icon: Newspaper },

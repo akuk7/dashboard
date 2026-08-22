@@ -1,4 +1,4 @@
-import { CheckSquare, ListTodo, Film, Wallet } from 'lucide-react'
+import { CheckSquare, ListTodo, Film, Wallet, Dumbbell } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import type { MobileTab } from './MobileApp'
 
@@ -7,6 +7,7 @@ const TABS: { id: MobileTab; label: string; icon: typeof CheckSquare }[] = [
   { id: 'habits', label: 'Habits', icon: CheckSquare },
   { id: 'tasks', label: 'Tasks', icon: ListTodo },
   { id: 'transactions', label: 'Transactions', icon: Wallet },
+  { id: 'workouts', label: 'Workouts', icon: Dumbbell },
 ]
 
 const BottomNav: React.FC = () => {

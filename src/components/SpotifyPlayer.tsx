@@ -7,7 +7,7 @@ const SpotifyPlayer: React.FC = () => {
 
     return (
         // Monochromatic Card Container
-        <div className="grow basis-2/5 min-w-0 flex flex-col items-center justify-center p-2 bg-[#121212] rounded-xl border border-[#303030] shadow-md text-white">
+        <div className="grow basis-2/5 min-w-0 flex flex-col items-center justify-center p-2 bg-[#121212] rounded-xl border border-[#303030] shadow-md text-white" id="music">
             <div className="w-full overflow-hidden rounded-lg">
                 <iframe
                     title="Spotify Embed"
