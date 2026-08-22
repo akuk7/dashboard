@@ -9,6 +9,7 @@ import NavBar from "./components/Navbar";
 import HeroSection from "./components/HeroSection";
 import Habits from "./components/Habits";
 import Transactions from "./components/Transactions";
+import Workouts from "./components/Workouts";
 import { useState, useEffect } from "react";
 import { fetchTheHinduLink } from "./lib/newspaperService";
 import { fetchLeetCodeDailyLink } from "./lib/leetcodeService";
@@ -58,12 +59,13 @@ function Dashboard() {
       />
       <TodoKanban />
 
-      <div className="flex w-[85vw] items-stretch mt-10 gap-4" id="breaks">
+      <div className="flex w-[85vw] items-stretch mt-10 gap-4">
         <DayCounter />
         <SpotifyPlayer />
       </div>
       <Habits />
       <Transactions />
+      <Workouts />
       <div className="flex w-[85vw] justify-start mt-10 gap-6">
         <DigitalJournal />
         <Watchlist />

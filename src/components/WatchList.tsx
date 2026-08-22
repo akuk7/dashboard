@@ -183,7 +183,7 @@ const Watchlist: React.FC = () => {
     };
 
     return (
-        <div className="p-6 border border-[#303030] shadow-md rounded-xl text-gray-100 flex flex-col h-[600px]">
+        <div className="p-6 border border-[#303030] shadow-md rounded-xl text-gray-100 flex flex-col h-[600px]" id="movies">
             {showCategoryModal && <CategoryModal onClose={() => setShowCategoryModal(false)} onCreate={handleCreateCategoryFromModal} />}
             {showWatchedGrid && <WatchedGrid onClose={() => setShowWatchedGrid(false)} />}
 

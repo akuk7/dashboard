@@ -10,7 +10,7 @@ export function toISTDateString(input: Date | string): string {
   return shifted.toISOString().split('T')[0]
 }
 
-// IST calendar date string for right now.
+// IST calendar date string for right now. heh
 export function todayIST(): string {
   return toISTDateString(new Date())
 }
