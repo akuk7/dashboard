@@ -41,6 +41,11 @@ export function startOfWeekIST(dateStr: string = todayIST()): string {
   return addDaysIST(dateStr, -diffFromMonday)
 }
 
+// First day of the current month, as an IST calendar date string.
+export function startOfMonthIST(): string {
+  return `${todayIST().slice(0, 7)}-01`
+}
+
 // `days` IST calendar dates ending today, newest first: [today, today-1, ..., today-(days-1)].
 export function datesEndingTodayIST(days: number): string[] {
   const today = todayIST()

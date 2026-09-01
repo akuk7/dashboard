@@ -8,6 +8,7 @@ import AccountModal from '../models/AccountModel'
 import TransactionCategoryModal from '../models/TransactionCategoryModel'
 import TransactionDashboard from './TransactionDashboard'
 import TransactionList from './TransactionList'
+import BudgetPanel from './BudgetPanel'
 
 type EditorState =
   | { mode: 'closed' }
@@ -158,6 +159,7 @@ const Transactions: React.FC = () => {
         lendOutLoans={lendOutLoans}
         lendInLoans={lendInLoans}
       />
+      <BudgetPanel transactions={transactions} categories={categories} />
       <TransactionList
         transactions={transactions}
         accounts={accounts}

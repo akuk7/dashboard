@@ -8,7 +8,7 @@ import ViewWorkoutsModel from '../../models/ViewWorkoutsModel'
 import LogWorkoutModel from '../../models/LogWorkoutModel'
 import type { LogWorkoutSaveResult } from '../../models/LogWorkoutModel'
 import MobileHeader from '../MobileHeader'
-import { formatDisplayIST } from '../../lib/dateUtils'
+import { formatDisplayIST, startOfMonthIST } from '../../lib/dateUtils'
 
 type ModalState =
   | { mode: 'closed' }
@@ -48,7 +48,7 @@ const MobileWorkouts: React.FC = () => {
 
   const [targetMuscleFilter, setTargetMuscleFilter] = useState('all')
   const [workoutFilter, setWorkoutFilter] = useState('all')
-  const [fromDate, setFromDate] = useState('')
+  const [fromDate, setFromDate] = useState(startOfMonthIST())
   const [toDate, setToDate] = useState('')
 
   const loadData = async () => {

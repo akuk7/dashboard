@@ -219,6 +219,12 @@ const LogWorkoutModel: React.FC<Props> = ({ workouts, categories, muscleGroups, 
         {category && isWeightTraining && (
           <div className="mb-4">
             <label className="block mb-2 text-sm font-medium text-gray-300">Sets</label>
+            <div className="flex items-center gap-2 mb-1 text-[10px] text-gray-500 uppercase tracking-wider">
+              <span className="w-full">Reps</span>
+              <span className="w-full">Weight (kg)</span>
+              <span className="w-4 shrink-0" />
+              <span className="w-4 shrink-0" />
+            </div>
             <div className="flex flex-col gap-2">
               {rows.map((row) => (
                 <div key={row.id} className="flex items-center gap-2">

@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Edit, Trash2, Star } from 'lucide-react'
 import type { MuscleGroup, Workout, WorkoutCategory, WorkoutSession } from '../types/workout'
-import { formatDisplayIST } from '../lib/dateUtils'
+import { formatDisplayIST, startOfMonthIST } from '../lib/dateUtils'
 
 type Props = {
   sessions: WorkoutSession[]
@@ -36,7 +36,7 @@ const isPRSession = (session: WorkoutSession, workout: Workout | undefined, cate
 const WorkoutLogList: React.FC<Props> = ({ sessions, workouts, categories, muscleGroups, onEditSession, onDeleteSession }) => {
   const [targetMuscleFilter, setTargetMuscleFilter] = useState('all')
   const [workoutFilter, setWorkoutFilter] = useState('all')
-  const [fromDate, setFromDate] = useState('')
+  const [fromDate, setFromDate] = useState(startOfMonthIST())
   const [toDate, setToDate] = useState('')
 
   const workoutsById = useMemo(() => {
