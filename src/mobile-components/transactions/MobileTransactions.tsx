@@ -33,6 +33,14 @@ const AMOUNT_SIGN: Partial<Record<TransactionType, '-' | '+'>> = {
   repayment_received: '+',
 }
 
+// Matches the DB query order (transaction_date desc, created_at desc) - keeps the list sorted by
+// when the transaction happened, not when the row was inserted/edited.
+const sortTransactions = (list: Transaction[]): Transaction[] =>
+  [...list].sort((a, b) => {
+    if (a.transaction_date !== b.transaction_date) return a.transaction_date < b.transaction_date ? 1 : -1
+    return a.created_at < b.created_at ? 1 : a.created_at > b.created_at ? -1 : 0
+  })
+
 const MobileTransactions: React.FC = () => {
   const [accounts, setAccounts] = useState<TransactionAccount[]>([])
   const [categories, setCategories] = useState<TransactionCategory[]>([])
@@ -104,7 +112,8 @@ const MobileTransactions: React.FC = () => {
   const handleTransactionSaved = (t: Transaction) => {
     setTransactions((prev) => {
       const exists = prev.some((x) => x.id === t.id)
-      return exists ? prev.map((x) => (x.id === t.id ? t : x)) : [t, ...prev]
+      const next = exists ? prev.map((x) => (x.id === t.id ? t : x)) : [t, ...prev]
+      return sortTransactions(next)
     })
     setEditorState({ mode: 'closed' })
   }

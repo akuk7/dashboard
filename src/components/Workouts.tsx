@@ -126,6 +126,7 @@ const Workouts: React.FC = () => {
         <LogWorkoutModel
           workouts={workouts}
           categories={categories}
+          muscleGroups={muscleGroups}
           sessions={sessions}
           initialWorkoutId={modalState.initialWorkoutId}
           initialLogDate={modalState.initialLogDate}

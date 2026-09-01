@@ -42,6 +42,7 @@ type Props = {
 
 const TransactionDashboard: React.FC<Props> = ({ transactions, accounts, categories, lendOutLoans, lendInLoans }) => {
   const [summaryStartDate, setSummaryStartDate] = useState(`${new Date().getFullYear()}-08-01`)
+  const [summaryEndDate, setSummaryEndDate] = useState('')
 
   const balances = useMemo(() => {
     const map: Record<string, number> = {}
@@ -94,16 +95,17 @@ const TransactionDashboard: React.FC<Props> = ({ transactions, accounts, categor
     let expense = 0
     transactions.forEach(t => {
       if (t.transaction_date < summaryStartDate) return
+      if (summaryEndDate && t.transaction_date > summaryEndDate) return
       if (t.type === 'credit') income += t.amount
       else if (t.type === 'debit') expense += t.amount
     })
     return { income, expense, net: income - expense }
-  }, [transactions, summaryStartDate])
+  }, [transactions, summaryStartDate, summaryEndDate])
 
   const categoryChart = useMemo(() => {
     const totals: Record<string, number> = {}
     transactions
-      .filter(t => t.type === 'debit' && t.transaction_date >= summaryStartDate)
+      .filter(t => t.type === 'debit' && t.transaction_date >= summaryStartDate && (!summaryEndDate || t.transaction_date <= summaryEndDate))
       .forEach(t => {
         const key = t.category_id ?? 'uncategorized'
         totals[key] = (totals[key] ?? 0) + t.amount
@@ -125,7 +127,7 @@ const TransactionDashboard: React.FC<Props> = ({ transactions, accounts, categor
         hoverOffset: 8,
       }],
     }
-  }, [transactions, categories, summaryStartDate])
+  }, [transactions, categories, summaryStartDate, summaryEndDate])
 
   const hasSpending = categoryChart.datasets[0].data.length > 0
 
@@ -180,14 +182,24 @@ const TransactionDashboard: React.FC<Props> = ({ transactions, accounts, categor
       </div>
 
       <div className="w-full md:w-[320px] p-4 bg-[#121212] rounded-xl border border-[#303030]">
-        <div className="flex items-center justify-between mb-2">
-          <p className="text-xs text-gray-500">Cash flow since</p>
-          <input
-            type="date"
-            value={summaryStartDate}
-            onChange={(e) => setSummaryStartDate(e.target.value)}
-            className="bg-[#0A0A0A] border border-[#303030] rounded-lg px-2 py-1 text-xs text-gray-300"
-          />
+        <div className="flex items-center justify-between mb-2 gap-2">
+          <p className="text-xs text-gray-500 flex-shrink-0">From</p>
+          <div className="flex items-center gap-1">
+            <input
+              type="date"
+              value={summaryStartDate}
+              onChange={(e) => setSummaryStartDate(e.target.value)}
+              className="bg-[#0A0A0A] border border-[#303030] rounded-lg px-2 py-1 text-xs text-gray-300"
+            />
+            <span className="text-xs text-gray-500">to</span>
+            <input
+              type="date"
+              value={summaryEndDate}
+              onChange={(e) => setSummaryEndDate(e.target.value)}
+              placeholder="today"
+              className="bg-[#0A0A0A] border border-[#303030] rounded-lg px-2 py-1 text-xs text-gray-300"
+            />
+          </div>
         </div>
         <div className="grid grid-cols-3 gap-2 mb-3">
           <div className="p-2 bg-[#0A0A0A] rounded-lg border border-[#303030]">

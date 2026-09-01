@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { X, Dumbbell, Save, PlusCircle, Copy, Trash2 } from 'lucide-react'
 import supabase from '../lib/supabase'
-import type { Workout, WorkoutCategory, WorkoutSet, WorkoutSession } from '../types/workout'
+import type { MuscleGroup, Workout, WorkoutCategory, WorkoutSet, WorkoutSession } from '../types/workout'
 import { checkAndBuildPRUpdate, sessionKey } from '../lib/workouts'
 import { todayIST } from '../lib/dateUtils'
 
@@ -16,6 +16,7 @@ export type LogWorkoutSaveResult = {
 type Props = {
   workouts: Workout[]
   categories: WorkoutCategory[]
+  muscleGroups: MuscleGroup[]
   sessions: WorkoutSession[]
   initialWorkoutId?: string
   initialLogDate?: string
@@ -25,7 +26,8 @@ type Props = {
 
 const blankRow = (): WeightRow => ({ id: crypto.randomUUID(), reps: '', weight: '' })
 
-const LogWorkoutModel: React.FC<Props> = ({ workouts, categories, sessions, initialWorkoutId, initialLogDate, onClose, onSaved }) => {
+const LogWorkoutModel: React.FC<Props> = ({ workouts, categories, muscleGroups, sessions, initialWorkoutId, initialLogDate, onClose, onSaved }) => {
+  const [targetMuscleFilter, setTargetMuscleFilter] = useState('all')
   const [workoutId, setWorkoutId] = useState(initialWorkoutId ?? '')
   const [logDate, setLogDate] = useState(initialLogDate ?? todayIST())
   const [rows, setRows] = useState<WeightRow[]>([blankRow()])
@@ -38,6 +40,16 @@ const LogWorkoutModel: React.FC<Props> = ({ workouts, categories, sessions, init
   const workout = workouts.find((w) => w.id === workoutId) ?? null
   const category = categories.find((c) => c.id === workout?.category_id) ?? null
   const isWeightTraining = category?.measurement_type === 'reps_weight'
+
+  // Picking a target muscle first narrows the workout dropdown - helpful as the exercise list grows.
+  const narrowedWorkouts = useMemo(
+    () => (targetMuscleFilter === 'all' ? workouts : workouts.filter((w) => w.target_muscle.includes(targetMuscleFilter))),
+    [workouts, targetMuscleFilter]
+  )
+
+  useEffect(() => {
+    if (workoutId && !narrowedWorkouts.some((w) => w.id === workoutId)) setWorkoutId('')
+  }, [narrowedWorkouts, workoutId])
 
   // Reactively load whatever session already exists for the current (workout, date) pair -
   // this makes the same modal serve fresh logging, adding more sets to today's session, and
@@ -171,6 +183,16 @@ const LogWorkoutModel: React.FC<Props> = ({ workouts, categories, sessions, init
           </button>
         </div>
 
+        <label className="block mb-2 text-sm font-medium text-gray-300">Target Muscle</label>
+        <select
+          value={targetMuscleFilter}
+          onChange={(e) => setTargetMuscleFilter(e.target.value)}
+          className="w-full bg-[#0A0A0A] border border-[#303030] focus:border-white rounded-lg px-4 py-3 mb-4 text-white outline-none"
+        >
+          <option value="all">All Target Muscles</option>
+          {muscleGroups.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+        </select>
+
         <div className="grid grid-cols-2 gap-4 mb-4">
           <div>
             <label className="block mb-2 text-sm font-medium text-gray-300">Workout</label>
@@ -180,7 +202,7 @@ const LogWorkoutModel: React.FC<Props> = ({ workouts, categories, sessions, init
               className="w-full bg-[#0A0A0A] border border-[#303030] focus:border-white rounded-lg px-4 py-3 text-white outline-none"
             >
               <option value="" disabled>Select workout</option>
-              {workouts.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
+              {narrowedWorkouts.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
             </select>
           </div>
           <div>

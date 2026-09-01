@@ -14,6 +14,14 @@ type EditorState =
   | { mode: 'create'; prefill?: Partial<Transaction> }
   | { mode: 'edit'; transaction: Transaction }
 
+// Matches the DB query order (transaction_date desc, created_at desc) - keeps the list sorted by
+// when the transaction happened, not when the row was inserted/edited.
+const sortTransactions = (list: Transaction[]): Transaction[] =>
+  [...list].sort((a, b) => {
+    if (a.transaction_date !== b.transaction_date) return a.transaction_date < b.transaction_date ? 1 : -1
+    return a.created_at < b.created_at ? 1 : a.created_at > b.created_at ? -1 : 0
+  })
+
 const Transactions: React.FC = () => {
   const [accounts, setAccounts] = useState<TransactionAccount[]>([])
   const [categories, setCategories] = useState<TransactionCategory[]>([])
@@ -47,8 +55,8 @@ const Transactions: React.FC = () => {
   const handleTransactionSaved = (transaction: Transaction) => {
     setTransactions(prev => {
       const exists = prev.some(t => t.id === transaction.id)
-      if (exists) return prev.map(t => (t.id === transaction.id ? transaction : t))
-      return [transaction, ...prev]
+      const next = exists ? prev.map(t => (t.id === transaction.id ? transaction : t)) : [transaction, ...prev]
+      return sortTransactions(next)
     })
     setEditorState({ mode: 'closed' })
   }
