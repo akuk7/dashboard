@@ -4,6 +4,7 @@ import { Chart as ChartJS, ArcElement, Tooltip, Legend, Title } from 'chart.js'
 import type { TooltipItem } from 'chart.js'
 import type { Transaction, TransactionAccount, TransactionCategory } from '../types/transaction'
 import type { LoanInfo } from '../lib/loans'
+import { startOfMonthIST } from '../lib/dateUtils'
 
 ChartJS.register(ArcElement, Tooltip, Legend, Title)
 
@@ -41,7 +42,7 @@ type Props = {
 }
 
 const TransactionDashboard: React.FC<Props> = ({ transactions, accounts, categories, lendOutLoans, lendInLoans }) => {
-  const [summaryStartDate, setSummaryStartDate] = useState(`${new Date().getFullYear()}-08-01`)
+  const [summaryStartDate, setSummaryStartDate] = useState(startOfMonthIST())
   const [summaryEndDate, setSummaryEndDate] = useState('')
 
   const balances = useMemo(() => {

@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
-import { PlusCircle, List, BarChart3, SlidersHorizontal, Edit, Trash2, HandCoins, ArrowLeftRight } from 'lucide-react'
+import { PlusCircle, List, BarChart3, SlidersHorizontal, Edit, Trash2, HandCoins, ArrowLeftRight, PiggyBank } from 'lucide-react'
 import supabase from '../../lib/supabase'
 import type { Transaction, TransactionAccount, TransactionCategory, TransactionType } from '../../types/transaction'
 import { getLoansWithOutstanding } from '../../lib/loans'
 import AddTransaction from '../../components/AddTransaction'
 import MobileHeader from '../MobileHeader'
 import MobileTransactionAnalytics from './MobileTransactionAnalytics'
+import MobileBudget from './MobileBudget'
+import { startOfMonthIST } from '../../lib/dateUtils'
 
 type EditorState =
   | { mode: 'closed' }
@@ -45,14 +47,14 @@ const MobileTransactions: React.FC = () => {
   const [accounts, setAccounts] = useState<TransactionAccount[]>([])
   const [categories, setCategories] = useState<TransactionCategory[]>([])
   const [transactions, setTransactions] = useState<Transaction[]>([])
-  const [view, setView] = useState<'list' | 'graph'>('list')
+  const [view, setView] = useState<'list' | 'graph' | 'budget'>('list')
   const [showFilters, setShowFilters] = useState(false)
   const [editorState, setEditorState] = useState<EditorState>({ mode: 'closed' })
 
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('non_transfer')
   const [accountFilter, setAccountFilter] = useState('all')
   const [categoryFilter, setCategoryFilter] = useState('all')
-  const [fromDate, setFromDate] = useState('')
+  const [fromDate, setFromDate] = useState(startOfMonthIST())
   const [toDate, setToDate] = useState('')
 
   const lendOutLoans = useMemo(() => getLoansWithOutstanding(transactions, 'lend_out'), [transactions])
@@ -162,6 +164,12 @@ const MobileTransactions: React.FC = () => {
             >
               <BarChart3 className="w-4 h-4" />
             </button>
+            <button
+              onClick={() => setView('budget')}
+              className={`p-1.5 rounded-md ${view === 'budget' ? 'bg-[#303030] text-white' : 'text-gray-500'}`}
+            >
+              <PiggyBank className="w-4 h-4" />
+            </button>
           </div>
         }
       />
@@ -174,6 +182,8 @@ const MobileTransactions: React.FC = () => {
           lendOutLoans={lendOutLoans}
           lendInLoans={lendInLoans}
         />
+      ) : view === 'budget' ? (
+        <MobileBudget transactions={transactions} categories={categories} />
       ) : (
         <div className="px-4 pt-4">
           <button

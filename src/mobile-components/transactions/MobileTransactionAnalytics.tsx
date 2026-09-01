@@ -3,6 +3,7 @@ import { Pie } from 'react-chartjs-2'
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js'
 import type { Transaction, TransactionAccount, TransactionCategory } from '../../types/transaction'
 import type { LoanInfo } from '../../lib/loans'
+import { startOfMonthIST } from '../../lib/dateUtils'
 
 ChartJS.register(ArcElement, Tooltip, Legend)
 
@@ -23,7 +24,7 @@ type Props = {
 }
 
 const MobileTransactionAnalytics: React.FC<Props> = ({ transactions, accounts, categories, lendOutLoans, lendInLoans }) => {
-  const [summaryStartDate, setSummaryStartDate] = useState(`${new Date().getFullYear()}-08-01`)
+  const [summaryStartDate, setSummaryStartDate] = useState(startOfMonthIST())
   const [summaryEndDate, setSummaryEndDate] = useState('')
 
   const balances = useMemo(() => {

@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react'
 import { Trash2, Edit, ArrowLeftRight, HandCoins } from 'lucide-react'
 import type { Transaction, TransactionAccount, TransactionCategory, TransactionType } from '../types/transaction'
 import type { LoanInfo } from '../lib/loans'
+import { startOfMonthIST } from '../lib/dateUtils'
 
 type TypeFilter = 'non_transfer' | 'all' | TransactionType
 
@@ -39,7 +40,7 @@ const TransactionList: React.FC<Props> = ({ transactions, accounts, categories, 
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('non_transfer')
   const [accountFilter, setAccountFilter] = useState('all')
   const [categoryFilter, setCategoryFilter] = useState('all')
-  const [fromDate, setFromDate] = useState('')
+  const [fromDate, setFromDate] = useState(startOfMonthIST())
   const [toDate, setToDate] = useState('')
 
   const accountsById = useMemo(() => {
