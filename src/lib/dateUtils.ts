@@ -65,9 +65,10 @@ export function weekdayLetterIST(dateStr: string): string {
   return WEEKDAY_LETTERS[dayOfWeekIST(dateStr)]
 }
 
-// Display formatting (DD/MM/YYYY) for a date-only or ISO timestamp string, using its IST calendar date.
+// Display formatting (dd-mm-yyyy, the app-wide uniform date format) for a date-only or ISO
+// timestamp string, using its IST calendar date.
 export function formatDisplayIST(input: string): string {
   const dateStr = input.length <= 10 ? input : toISTDateString(input)
   const [y, m, d] = dateStr.split('-')
-  return `${d}/${m}/${y}`
+  return `${d}-${m}-${y}`
 }

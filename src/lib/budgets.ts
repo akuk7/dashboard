@@ -24,9 +24,17 @@ export function effectiveMonthEnd(month: number, year: number): string {
   return isCurrentMonth ? addDaysIST(today, 1) : end
 }
 
-// Sums debit transactions in [start, effectiveEnd) by category_id, matching the same
-// type === 'debit' filter TransactionDashboard.tsx's spending pie chart already uses, so budget
-// "spent" always agrees with it. Uncategorized (null category_id) spend is bucketed separately.
+// Reserved key in category_budgets/byCategory for the "Repayment" budget line - repayments have
+// no category_id of their own (AddTransaction.tsx never sets one for repayment types), so they'd
+// otherwise be invisible to budgeting entirely (they aren't type === 'debit' either). Not a real
+// transaction_categories id, so it can never collide with one.
+export const REPAYMENT_BUDGET_KEY = '__repayment__'
+
+// Sums spend in [start, effectiveEnd) by category_id, matching the same type === 'debit' filter
+// TransactionDashboard.tsx's spending pie chart already uses, so budget "spent" always agrees
+// with it. Uncategorized (null category_id) debit spend is bucketed separately. repayment_made
+// transactions (paying back something you borrowed) are bucketed under REPAYMENT_BUDGET_KEY -
+// repayment_received is incoming money, not spend, so it's excluded entirely.
 export function computeCategorySpend(
   transactions: Transaction[],
   month: number,
@@ -39,10 +47,13 @@ export function computeCategorySpend(
   let uncategorized = 0
 
   transactions.forEach((t) => {
-    if (t.type !== 'debit') return
     if (t.transaction_date < start || t.transaction_date >= end) return
-    if (t.category_id) byCategory[t.category_id] = (byCategory[t.category_id] ?? 0) + t.amount
-    else uncategorized += t.amount
+    if (t.type === 'debit') {
+      if (t.category_id) byCategory[t.category_id] = (byCategory[t.category_id] ?? 0) + t.amount
+      else uncategorized += t.amount
+    } else if (t.type === 'repayment_made') {
+      byCategory[REPAYMENT_BUDGET_KEY] = (byCategory[REPAYMENT_BUDGET_KEY] ?? 0) + t.amount
+    }
   })
 
   return { byCategory, uncategorized }

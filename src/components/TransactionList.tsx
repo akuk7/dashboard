@@ -1,8 +1,8 @@
 import React, { useMemo, useState } from 'react'
-import { Trash2, Edit, ArrowLeftRight, HandCoins } from 'lucide-react'
+import { Trash2, Edit, ArrowLeftRight, HandCoins, PlusCircle, Search } from 'lucide-react'
 import type { Transaction, TransactionAccount, TransactionCategory, TransactionType } from '../types/transaction'
 import type { LoanInfo } from '../lib/loans'
-import { startOfMonthIST } from '../lib/dateUtils'
+import { formatDisplayIST, startOfMonthIST } from '../lib/dateUtils'
 
 type TypeFilter = 'non_transfer' | 'all' | TransactionType
 
@@ -12,6 +12,7 @@ type Props = {
   categories: TransactionCategory[]
   lendOutLoans: LoanInfo[]
   lendInLoans: LoanInfo[]
+  onAdd: () => void
   onEdit: (transaction: Transaction) => void
   onDelete: (id: string) => void
   onRepay: (loan: Transaction) => void
@@ -36,12 +37,13 @@ const AMOUNT_SIGN: Partial<Record<TransactionType, '-' | '+'>> = {
   repayment_received: '+',
 }
 
-const TransactionList: React.FC<Props> = ({ transactions, accounts, categories, lendOutLoans, lendInLoans, onEdit, onDelete, onRepay }) => {
+const TransactionList: React.FC<Props> = ({ transactions, accounts, categories, lendOutLoans, lendInLoans, onAdd, onEdit, onDelete, onRepay }) => {
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('non_transfer')
   const [accountFilter, setAccountFilter] = useState('all')
   const [categoryFilter, setCategoryFilter] = useState('all')
   const [fromDate, setFromDate] = useState(startOfMonthIST())
   const [toDate, setToDate] = useState('')
+  const [search, setSearch] = useState('')
 
   const accountsById = useMemo(() => {
     const map: Record<string, string> = {}
@@ -62,6 +64,7 @@ const TransactionList: React.FC<Props> = ({ transactions, accounts, categories, 
   }, [lendOutLoans, lendInLoans])
 
   const filtered = useMemo(() => {
+    const query = search.trim().toLowerCase()
     return transactions.filter(t => {
       if (typeFilter === 'non_transfer' && t.type === 'internal_transfer') return false
       if (typeFilter !== 'non_transfer' && typeFilter !== 'all' && t.type !== typeFilter) return false
@@ -69,16 +72,36 @@ const TransactionList: React.FC<Props> = ({ transactions, accounts, categories, 
       if (categoryFilter !== 'all' && t.category_id !== categoryFilter) return false
       if (fromDate && t.transaction_date < fromDate) return false
       if (toDate && t.transaction_date > toDate) return false
+      if (query && !t.description.toLowerCase().includes(query)) return false
       return true
     })
-  }, [transactions, typeFilter, accountFilter, categoryFilter, fromDate, toDate])
+  }, [transactions, typeFilter, accountFilter, categoryFilter, fromDate, toDate, search])
 
   return (
     <div className="p-6 border border-[#303030] shadow-md rounded-xl text-gray-100 mt-6">
       <div className="flex flex-wrap justify-between items-center mb-4 border-b border-[#303030] pb-3 gap-3">
-        <h4 className="text-xl font-bold text-white">History ({filtered.length})</h4>
+        <div className="flex items-center gap-3">
+          <h4 className="text-xl font-bold text-white">History ({filtered.length})</h4>
+          <button
+            onClick={onAdd}
+            className="inline-flex items-center gap-2 px-3 py-1.5 bg-white text-black rounded-lg font-medium text-sm"
+          >
+            <PlusCircle size={16} /> Add Transaction
+          </button>
+        </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search description..."
+              className="bg-[#0A0A0A] border border-[#303030] rounded-lg pl-8 pr-3 py-1 text-sm text-gray-300 w-44"
+            />
+          </div>
+
           <select
             value={typeFilter}
             onChange={(e) => setTypeFilter(e.target.value as TypeFilter)}
@@ -141,7 +164,7 @@ const TransactionList: React.FC<Props> = ({ transactions, accounts, categories, 
                 <div className="min-w-0">
                   <p className="text-sm font-semibold text-white truncate">{t.description}</p>
                   <p className="text-xs text-gray-500">
-                    {t.transaction_date} &middot; {accountsById[t.account_id] ?? 'Unknown'}
+                    {formatDisplayIST(t.transaction_date)} &middot; {accountsById[t.account_id] ?? 'Unknown'}
                     {t.type === 'internal_transfer' && t.to_account_id
                       ? ` → ${accountsById[t.to_account_id] ?? 'Unknown'}`
                       : ''}

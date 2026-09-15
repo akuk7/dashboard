@@ -3,7 +3,7 @@ import { ChevronLeft, ChevronRight, AlertTriangle } from 'lucide-react'
 import supabase from '../../lib/supabase'
 import type { Budget } from '../../types/budget'
 import type { Transaction, TransactionCategory } from '../../types/transaction'
-import { computeCategorySpend, budgetStatusColor } from '../../lib/budgets'
+import { computeCategorySpend, budgetStatusColor, REPAYMENT_BUDGET_KEY } from '../../lib/budgets'
 import { todayIST } from '../../lib/dateUtils'
 import BudgetEditorModal from '../../models/BudgetEditorModal'
 
@@ -14,6 +14,7 @@ const MONTH_NAMES = [
 
 const FLOOR_YEAR = 2026
 const FLOOR_MONTH = 8
+const UNCATEGORIZED_KEY = '__uncategorized__'
 
 const STATUS_BAR_COLOR: Record<'green' | 'yellow' | 'red', string> = {
   green: '#34d399',
@@ -32,6 +33,7 @@ const MobileBudget: React.FC<Props> = ({ categories, transactions }) => {
   const [viewYear, setViewYear] = useState(Number(today.slice(0, 4)))
   const [budgets, setBudgets] = useState<Budget[]>([])
   const [showEditor, setShowEditor] = useState(false)
+  const [uncheckedIds, setUncheckedIds] = useState<Set<string>>(new Set())
 
   const loadBudgets = async () => {
     const { data } = await supabase.from('budgets').select('*').order('year', { ascending: true }).order('month', { ascending: true })
@@ -42,11 +44,20 @@ const MobileBudget: React.FC<Props> = ({ categories, transactions }) => {
     loadBudgets()
   }, [])
 
+  useEffect(() => {
+    setUncheckedIds(new Set())
+  }, [viewMonth, viewYear])
+
   const categoriesById = useMemo(() => {
     const map: Record<string, TransactionCategory> = {}
     categories.forEach((c) => { map[c.id] = c })
     return map
   }, [categories])
+
+  const resolveName = (id: string): string => {
+    if (id === REPAYMENT_BUDGET_KEY) return 'Repayment'
+    return categoriesById[id]?.name ?? 'Unknown'
+  }
 
   const currentBudget = budgets.find((b) => b.month === viewMonth && b.year === viewYear) ?? null
   const spend = useMemo(() => computeCategorySpend(transactions, viewMonth, viewYear), [transactions, viewMonth, viewYear])
@@ -63,7 +74,7 @@ const MobileBudget: React.FC<Props> = ({ categories, transactions }) => {
         const spentAmt = spend.byCategory[id] ?? 0
         return {
           id,
-          name: categoriesById[id]?.name ?? 'Unknown',
+          name: resolveName(id),
           budgeted,
           spent: spentAmt,
           hasBudget,
@@ -71,16 +82,18 @@ const MobileBudget: React.FC<Props> = ({ categories, transactions }) => {
         }
       })
       .sort((a, b) => a.name.localeCompare(b.name))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentBudget, spend, categoriesById])
 
   const totalBudgeted = useMemo(
-    () => Object.values(currentBudget?.category_budgets ?? {}).reduce((a, b) => a + b, 0),
-    [currentBudget]
+    () => rows.filter((r) => !uncheckedIds.has(r.id)).reduce((sum, r) => sum + r.budgeted, 0),
+    [rows, uncheckedIds]
   )
-  const totalSpent = useMemo(
-    () => Object.values(spend.byCategory).reduce((a, b) => a + b, 0) + spend.uncategorized,
-    [spend]
-  )
+  const totalSpent = useMemo(() => {
+    const fromRows = rows.filter((r) => !uncheckedIds.has(r.id)).reduce((sum, r) => sum + r.spent, 0)
+    const uncategorizedIncluded = uncheckedIds.has(UNCATEGORIZED_KEY) ? 0 : spend.uncategorized
+    return fromRows + uncategorizedIncluded
+  }, [rows, uncheckedIds, spend])
   const remaining = totalBudgeted - totalSpent
   const overBudgetCount = rows.filter((r) => r.hasBudget && r.status === 'red').length
 
@@ -101,6 +114,15 @@ const MobileBudget: React.FC<Props> = ({ categories, transactions }) => {
     setBudgets((prev) => {
       const exists = prev.some((b) => b.id === budget.id)
       return exists ? prev.map((b) => (b.id === budget.id ? budget : b)) : [...prev, budget]
+    })
+  }
+
+  const toggleChecked = (id: string) => {
+    setUncheckedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
     })
   }
 
@@ -157,7 +179,7 @@ const MobileBudget: React.FC<Props> = ({ categories, transactions }) => {
 
           {overBudgetCount > 0 && (
             <div className="flex items-center gap-2 mb-4 p-3 rounded-lg bg-red-400/10 border border-red-400/30 text-red-400 text-sm">
-              <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+              <AlertTriangle className="w-4 h-4 shrink-0" />
               {overBudgetCount} categor{overBudgetCount === 1 ? 'y is' : 'ies are'} over budget
             </div>
           )}
@@ -165,34 +187,58 @@ const MobileBudget: React.FC<Props> = ({ categories, transactions }) => {
           <div className="flex flex-col gap-3 pb-4">
             {rows.map((r) => {
               const pct = r.hasBudget && r.budgeted > 0 ? Math.min(100, (r.spent / r.budgeted) * 100) : 0
+              const multiplier = r.hasBudget && r.budgeted > 0 ? `${(r.spent / r.budgeted).toFixed(2)}x` : null
               return (
-                <div key={r.id}>
-                  <div className="flex items-center justify-between mb-1 text-sm">
-                    <span className="text-gray-300">{r.name}</span>
-                    <span className="text-gray-400 text-xs">
-                      {r.hasBudget ? `${r.spent.toFixed(2)} / ${r.budgeted.toFixed(2)}` : `${r.spent.toFixed(2)} · No budget`}
-                    </span>
-                  </div>
-                  <div className="w-full h-2 bg-[#0A0A0A] border border-[#303030] rounded-full overflow-hidden">
-                    <div
-                      className="h-full rounded-full transition-all"
-                      style={{
-                        width: r.hasBudget ? `${pct}%` : '100%',
-                        backgroundColor: r.hasBudget ? STATUS_BAR_COLOR[r.status!] : STATUS_BAR_COLOR.red,
-                      }}
-                    />
+                <div key={r.id} className="flex items-start gap-2">
+                  <input
+                    type="checkbox"
+                    checked={!uncheckedIds.has(r.id)}
+                    onChange={() => toggleChecked(r.id)}
+                    className="mt-1 shrink-0"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between mb-1 text-sm gap-2">
+                      <span className="text-gray-300">{r.name}</span>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <span className="text-gray-400 text-xs">
+                          {r.hasBudget ? `${r.spent.toFixed(2)} / ${r.budgeted.toFixed(2)}` : `${r.spent.toFixed(2)} · No budget`}
+                        </span>
+                        {multiplier && (
+                          <span className={`text-[11px] font-semibold ${r.status === 'red' ? 'text-red-400' : 'text-gray-500'}`}>
+                            {multiplier}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="w-full h-2 bg-[#0A0A0A] border border-[#303030] rounded-full overflow-hidden">
+                      <div
+                        className="h-full rounded-full transition-all"
+                        style={{
+                          width: r.hasBudget ? `${pct}%` : '100%',
+                          backgroundColor: r.hasBudget ? STATUS_BAR_COLOR[r.status!] : STATUS_BAR_COLOR.red,
+                        }}
+                      />
+                    </div>
                   </div>
                 </div>
               )
             })}
             {spend.uncategorized > 0 && (
-              <div>
-                <div className="flex items-center justify-between mb-1 text-sm">
-                  <span className="text-gray-300">Uncategorized</span>
-                  <span className="text-gray-400 text-xs">{spend.uncategorized.toFixed(2)}</span>
-                </div>
-                <div className="w-full h-2 bg-[#0A0A0A] border border-[#303030] rounded-full overflow-hidden">
-                  <div className="h-full rounded-full" style={{ width: '100%', backgroundColor: STATUS_BAR_COLOR.red }} />
+              <div className="flex items-start gap-2">
+                <input
+                  type="checkbox"
+                  checked={!uncheckedIds.has(UNCATEGORIZED_KEY)}
+                  onChange={() => toggleChecked(UNCATEGORIZED_KEY)}
+                  className="mt-1 shrink-0"
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between mb-1 text-sm">
+                    <span className="text-gray-300">Uncategorized</span>
+                    <span className="text-gray-400 text-xs">{spend.uncategorized.toFixed(2)}</span>
+                  </div>
+                  <div className="w-full h-2 bg-[#0A0A0A] border border-[#303030] rounded-full overflow-hidden">
+                    <div className="h-full rounded-full" style={{ width: '100%', backgroundColor: STATUS_BAR_COLOR.red }} />
+                  </div>
                 </div>
               </div>
             )}

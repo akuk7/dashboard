@@ -75,6 +75,18 @@ const ViewWorkoutsModel: React.FC<Props> = ({ workouts, categories, muscleGroups
                             <>PR: <span className="text-amber-400 font-semibold">{w.pr_weight}kg &times; {w.pr_reps} = {w.pr_value}</span>
                               {w.pr_achieved_at && <> on {formatDisplayIST(w.pr_achieved_at)}</>}</>
                           ) : 'No PR yet'
+                        ) : category.measurement_type === 'calisthenics' ? (
+                          w.calisthenics_metric === 'time' ? (
+                            w.pr_duration_seconds != null ? (
+                              <>PR: <span className="text-amber-400 font-semibold">{w.pr_duration_seconds}s</span>
+                                {w.pr_achieved_at && <> on {formatDisplayIST(w.pr_achieved_at)}</>}</>
+                            ) : 'No PR yet'
+                          ) : (
+                            w.pr_reps != null ? (
+                              <>PR: <span className="text-amber-400 font-semibold">{w.pr_reps} reps</span>
+                                {w.pr_achieved_at && <> on {formatDisplayIST(w.pr_achieved_at)}</>}</>
+                            ) : 'No PR yet'
+                          )
                         ) : (
                           w.pr_distance != null ? (
                             <>PR: <span className="text-amber-400 font-semibold">{w.pr_distance}</span>

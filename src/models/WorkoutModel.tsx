@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { X, PlusCircle, Save } from 'lucide-react'
 import supabase from '../lib/supabase'
-import type { MuscleGroup, Workout, WorkoutCategory } from '../types/workout'
+import type { CalisthenicsMetric, MuscleGroup, Workout, WorkoutCategory } from '../types/workout'
 
 type Props = {
   workout: Workout | null // null for new, populated for editing
@@ -18,6 +18,7 @@ const WorkoutModel: React.FC<Props> = ({ workout, categories, muscleGroups, hasS
   const [name, setName] = useState('')
   const [categoryId, setCategoryId] = useState('')
   const [targetMuscle, setTargetMuscle] = useState<string[]>([])
+  const [calisthenicsMetric, setCalisthenicsMetric] = useState<CalisthenicsMetric>('reps')
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -25,20 +26,23 @@ const WorkoutModel: React.FC<Props> = ({ workout, categories, muscleGroups, hasS
       setName(workout.name)
       setCategoryId(workout.category_id)
       setTargetMuscle(workout.target_muscle)
+      setCalisthenicsMetric(workout.calisthenics_metric ?? 'reps')
     } else {
       setName('')
       setCategoryId(categories[0]?.id ?? '')
       setTargetMuscle([])
+      setCalisthenicsMetric('reps')
     }
   }, [workout, categories])
 
   const selectedCategory = categories.find((c) => c.id === categoryId)
   const isWeightTraining = selectedCategory?.measurement_type === 'reps_weight'
+  const isCalisthenics = selectedCategory?.measurement_type === 'calisthenics'
 
   const handleCategoryChange = (nextCategoryId: string) => {
     setCategoryId(nextCategoryId)
     const nextCategory = categories.find((c) => c.id === nextCategoryId)
-    if (nextCategory?.measurement_type !== 'reps_weight') setTargetMuscle([]) // cardio has no target muscle
+    if (nextCategory?.measurement_type !== 'reps_weight') setTargetMuscle([]) // only weight training has a target muscle
   }
 
   const toggleMuscle = (muscleId: string) => {
@@ -55,6 +59,7 @@ const WorkoutModel: React.FC<Props> = ({ workout, categories, muscleGroups, hasS
       name: name.trim(),
       category_id: categoryId,
       target_muscle: isWeightTraining ? targetMuscle : [],
+      calisthenics_metric: isCalisthenics ? calisthenicsMetric : null,
     }
 
     const { data, error: saveError } = isEditing
@@ -106,6 +111,29 @@ const WorkoutModel: React.FC<Props> = ({ workout, categories, muscleGroups, hasS
           <p className="text-xs text-gray-500 mb-4">Category is locked because this workout already has logged sets.</p>
         )}
         {!hasSets && <div className="mb-4" />}
+
+        {isCalisthenics && (
+          <>
+            <label className="block mb-2 text-sm font-medium text-gray-300">Track By</label>
+            <div className="flex gap-2 mb-4 bg-[#0A0A0A] p-1 rounded-lg border border-[#303030]">
+              {(['reps', 'time'] as CalisthenicsMetric[]).map((metric) => (
+                <button
+                  key={metric}
+                  onClick={() => !hasSets && setCalisthenicsMetric(metric)}
+                  disabled={hasSets}
+                  className={`flex-1 py-2 rounded-md text-sm font-medium capitalize transition ${
+                    calisthenicsMetric === metric ? 'bg-white text-black' : 'text-gray-400'
+                  } disabled:opacity-50 disabled:cursor-not-allowed`}
+                >
+                  {metric}
+                </button>
+              ))}
+            </div>
+            {hasSets && (
+              <p className="text-xs text-gray-500 -mt-3 mb-4">Locked because this workout already has logged sets.</p>
+            )}
+          </>
+        )}
 
         {isWeightTraining && (
           <>

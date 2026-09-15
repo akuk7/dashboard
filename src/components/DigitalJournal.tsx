@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {  Edit, Trash2, Calendar, BookOpen, Search, PlusCircle,  Eye } from 'lucide-react';
 import supabase from '../lib/supabase';
+import { formatDisplayIST } from '../lib/dateUtils';
 
 
 
@@ -203,7 +204,7 @@ const DigitalJournal: React.FC = () => {
                             </h5>
                             <p className="text-xs text-gray-500 flex items-center gap-1 mt-1">
                                 <Calendar className="w-3 h-3" />
-                                {new Date(entry.entry_date).toLocaleDateString()}
+                                {formatDisplayIST(entry.entry_date)}
                             </p>
                         </div>
 
