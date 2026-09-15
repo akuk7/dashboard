@@ -17,10 +17,16 @@ type ModalState =
   | { mode: 'editWorkout'; workout: Workout }
   | { mode: 'viewWorkouts' }
 
-const summarizeSession = (session: WorkoutSession, category: WorkoutCategory | undefined): string => {
+const summarizeSession = (session: WorkoutSession, workout: Workout | undefined, category: WorkoutCategory | undefined): string => {
   if (!category) return ''
   if (category.measurement_type === 'reps_weight') {
     return session.sets.map((s) => `${s.weight}kg×${s.reps}`).join(' · ')
+  }
+  if (category.measurement_type === 'calisthenics') {
+    if (workout?.calisthenics_metric === 'time') {
+      return session.sets.map((s) => `${s.duration_seconds}s`).join(' · ')
+    }
+    return session.sets.map((s) => `${s.reps} reps`).join(' · ')
   }
   const set = session.sets[0]
   if (!set) return ''
@@ -35,6 +41,11 @@ const isPRSession = (session: WorkoutSession, workout: Workout | undefined, cate
   if (category.measurement_type === 'reps_weight') {
     return session.sets.some((s) => s.weight === workout.pr_weight && s.reps === workout.pr_reps)
   }
+  if (category.measurement_type === 'calisthenics') {
+    return workout.calisthenics_metric === 'time'
+      ? session.sets.some((s) => s.duration_seconds === workout.pr_duration_seconds)
+      : session.sets.some((s) => s.reps === workout.pr_reps)
+  }
   return session.sets.some((s) => s.distance === workout.pr_distance)
 }
 
@@ -46,6 +57,7 @@ const MobileWorkouts: React.FC = () => {
   const [modalState, setModalState] = useState<ModalState>({ mode: 'closed' })
   const [showFilters, setShowFilters] = useState(false)
 
+  const [categoryFilter, setCategoryFilter] = useState('all')
   const [targetMuscleFilter, setTargetMuscleFilter] = useState('all')
   const [workoutFilter, setWorkoutFilter] = useState('all')
   const [fromDate, setFromDate] = useState(startOfMonthIST())
@@ -68,6 +80,16 @@ const MobileWorkouts: React.FC = () => {
     loadData()
   }, [])
 
+  // Categories load async - default the Type filter to Weight Training once they arrive, in case
+  // this mounted before the fetch resolved.
+  useEffect(() => {
+    if (categoryFilter === 'all' && categories.length > 0) {
+      const weightTraining = categories.find((c) => c.measurement_type === 'reps_weight')
+      if (weightTraining) setCategoryFilter(weightTraining.id)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [categories])
+
   const sessions = useMemo(() => groupIntoSessions(workoutSets), [workoutSets])
 
   const workoutsById = useMemo(() => {
@@ -82,10 +104,16 @@ const MobileWorkouts: React.FC = () => {
     return map
   }, [categories])
 
-  const narrowedWorkouts = useMemo(
-    () => (targetMuscleFilter === 'all' ? workouts : workouts.filter((w) => w.target_muscle.includes(targetMuscleFilter))),
-    [workouts, targetMuscleFilter]
-  )
+  const filterCategory = categories.find((c) => c.id === categoryFilter) ?? null
+  const showMuscleFilter = filterCategory?.measurement_type === 'reps_weight'
+
+  const narrowedWorkouts = useMemo(() => {
+    let list = categoryFilter === 'all' ? workouts : workouts.filter((w) => w.category_id === categoryFilter)
+    if (showMuscleFilter && targetMuscleFilter !== 'all') {
+      list = list.filter((w) => w.target_muscle.includes(targetMuscleFilter))
+    }
+    return list
+  }, [workouts, categoryFilter, showMuscleFilter, targetMuscleFilter])
 
   useEffect(() => {
     if (workoutFilter !== 'all' && !narrowedWorkouts.some((w) => w.id === workoutFilter)) {
@@ -96,13 +124,14 @@ const MobileWorkouts: React.FC = () => {
   const filtered = useMemo(() => {
     return sessions.filter((s) => {
       const workout = workoutsById[s.workout_id]
-      if (targetMuscleFilter !== 'all' && !workout?.target_muscle.includes(targetMuscleFilter)) return false
+      if (categoryFilter !== 'all' && workout?.category_id !== categoryFilter) return false
+      if (showMuscleFilter && targetMuscleFilter !== 'all' && !workout?.target_muscle.includes(targetMuscleFilter)) return false
       if (workoutFilter !== 'all' && s.workout_id !== workoutFilter) return false
       if (fromDate && s.log_date < fromDate) return false
       if (toDate && s.log_date > toDate) return false
       return true
     })
-  }, [sessions, workoutsById, targetMuscleFilter, workoutFilter, fromDate, toDate])
+  }, [sessions, workoutsById, categoryFilter, showMuscleFilter, targetMuscleFilter, workoutFilter, fromDate, toDate])
 
   const hasSets = (workoutId: string) => workoutSets.some((s) => s.workout_id === workoutId)
 
@@ -178,13 +207,23 @@ const MobileWorkouts: React.FC = () => {
         {showFilters && (
           <div className="grid grid-cols-2 gap-2 mb-4">
             <select
-              value={targetMuscleFilter}
-              onChange={(e) => setTargetMuscleFilter(e.target.value)}
-              className="bg-[#0A0A0A] border border-[#303030] rounded-lg px-3 py-2 text-sm text-gray-300"
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              className="col-span-2 bg-[#0A0A0A] border border-[#303030] rounded-lg px-3 py-2 text-sm text-gray-300"
             >
-              <option value="all">All Target Muscles</option>
-              {muscleGroups.map((muscle) => <option key={muscle.id} value={muscle.id}>{muscle.name}</option>)}
+              <option value="all">All Types</option>
+              {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
+            {showMuscleFilter && (
+              <select
+                value={targetMuscleFilter}
+                onChange={(e) => setTargetMuscleFilter(e.target.value)}
+                className="col-span-2 bg-[#0A0A0A] border border-[#303030] rounded-lg px-3 py-2 text-sm text-gray-300"
+              >
+                <option value="all">All Target Muscles</option>
+                {muscleGroups.map((muscle) => <option key={muscle.id} value={muscle.id}>{muscle.name}</option>)}
+              </select>
+            )}
             <select
               value={workoutFilter}
               onChange={(e) => setWorkoutFilter(e.target.value)}
@@ -227,7 +266,7 @@ const MobileWorkouts: React.FC = () => {
                       )}
                     </div>
                     <p className="text-xs text-gray-500 mt-1">
-                      {formatDisplayIST(session.log_date)} &middot; {summarizeSession(session, category)}
+                      {formatDisplayIST(session.log_date)} &middot; {summarizeSession(session, workout, category)}
                     </p>
                   </div>
                   <div className="flex items-center gap-3 flex-shrink-0">

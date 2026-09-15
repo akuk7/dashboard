@@ -3,8 +3,8 @@ import { Pie } from 'react-chartjs-2'
 import { Chart as ChartJS, ArcElement, Tooltip, Legend, Title } from 'chart.js'
 import type { TooltipItem } from 'chart.js'
 import type { Transaction, TransactionAccount, TransactionCategory } from '../types/transaction'
-import type { LoanInfo } from '../lib/loans'
-import { startOfMonthIST } from '../lib/dateUtils'
+import { getLoansWithOutstanding } from '../lib/loans'
+import { startOfMonthIST, todayIST } from '../lib/dateUtils'
 
 ChartJS.register(ArcElement, Tooltip, Legend, Title)
 
@@ -37,18 +37,27 @@ type Props = {
   transactions: Transaction[]
   accounts: TransactionAccount[]
   categories: TransactionCategory[]
-  lendOutLoans: LoanInfo[]
-  lendInLoans: LoanInfo[]
 }
 
-const TransactionDashboard: React.FC<Props> = ({ transactions, accounts, categories, lendOutLoans, lendInLoans }) => {
+const TransactionDashboard: React.FC<Props> = ({ transactions, accounts, categories }) => {
   const [summaryStartDate, setSummaryStartDate] = useState(startOfMonthIST())
   const [summaryEndDate, setSummaryEndDate] = useState('')
+  // "As of" date for the balance/net-worth/lent figures below - defaults to today, and including
+  // that day means only transactions on or before it count. Independent of the cash-flow range
+  // above, which is a period total, not a point-in-time snapshot.
+  const [balanceAsOfDate, setBalanceAsOfDate] = useState(todayIST())
+
+  const transactionsAsOf = useMemo(
+    () => transactions.filter(t => t.transaction_date <= balanceAsOfDate),
+    [transactions, balanceAsOfDate]
+  )
+  const lendOutLoans = useMemo(() => getLoansWithOutstanding(transactionsAsOf, 'lend_out'), [transactionsAsOf])
+  const lendInLoans = useMemo(() => getLoansWithOutstanding(transactionsAsOf, 'lend_in'), [transactionsAsOf])
 
   const balances = useMemo(() => {
     const map: Record<string, number> = {}
     accounts.forEach(a => { map[a.id] = a.opening_balance })
-    transactions.forEach(t => {
+    transactionsAsOf.forEach(t => {
       if (!t.is_temporary) return
       if (t.type === 'credit' || t.type === 'lend_in' || t.type === 'repayment_received') map[t.account_id] = (map[t.account_id] ?? 0) + t.amount
       else if (t.type === 'debit' || t.type === 'lend_out' || t.type === 'repayment_made') map[t.account_id] = (map[t.account_id] ?? 0) - t.amount
@@ -58,7 +67,7 @@ const TransactionDashboard: React.FC<Props> = ({ transactions, accounts, categor
       }
     })
     return map
-  }, [accounts, transactions])
+  }, [accounts, transactionsAsOf])
 
   // Raw cash across all accounts - lend_out/lend_in move real cash just like debit/credit,
   // so this figure doesn't distinguish loans from ordinary spending/income.
@@ -135,6 +144,15 @@ const TransactionDashboard: React.FC<Props> = ({ transactions, accounts, categor
   return (
     <div className="flex flex-col md:flex-row gap-4 mt-6">
       <div className="flex-1 flex flex-col gap-4">
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-xs text-gray-500">Balances as of</p>
+          <input
+            type="date"
+            value={balanceAsOfDate}
+            onChange={(e) => setBalanceAsOfDate(e.target.value)}
+            className="bg-[#0A0A0A] border border-[#303030] rounded-lg px-2 py-1 text-xs text-gray-300"
+          />
+        </div>
         {/* Row 1: headline totals */}
         <div className="grid grid-cols-3 gap-3">
           <div className="p-4 bg-[#121212] rounded-xl border border-white/40" title="Raw cash across all accounts, treating lend_out/lend_in as ordinary cash movements">

@@ -6,6 +6,7 @@ import { checkAndBuildPRUpdate, sessionKey } from '../lib/workouts'
 import { todayIST } from '../lib/dateUtils'
 
 type WeightRow = { id: string; reps: string; weight: string }
+type SingleValueRow = { id: string; value: string } // calisthenics - either reps or seconds held
 
 export type LogWorkoutSaveResult = {
   key: string
@@ -25,12 +26,19 @@ type Props = {
 }
 
 const blankRow = (): WeightRow => ({ id: crypto.randomUUID(), reps: '', weight: '' })
+const blankSingleRow = (): SingleValueRow => ({ id: crypto.randomUUID(), value: '' })
 
 const LogWorkoutModel: React.FC<Props> = ({ workouts, categories, muscleGroups, sessions, initialWorkoutId, initialLogDate, onClose, onSaved }) => {
+  // Type (category) is picked first, defaulting to Weight Training - only then does the target
+  // muscle filter appear, and only for that category.
+  const [categoryFilter, setCategoryFilter] = useState(
+    () => categories.find((c) => c.measurement_type === 'reps_weight')?.id ?? 'all'
+  )
   const [targetMuscleFilter, setTargetMuscleFilter] = useState('all')
   const [workoutId, setWorkoutId] = useState(initialWorkoutId ?? '')
   const [logDate, setLogDate] = useState(initialLogDate ?? todayIST())
   const [rows, setRows] = useState<WeightRow[]>([blankRow()])
+  const [calisthenicsRows, setCalisthenicsRows] = useState<SingleValueRow[]>([blankSingleRow()])
   const [distance, setDistance] = useState('')
   const [minutes, setMinutes] = useState('')
   const [seconds, setSeconds] = useState('')
@@ -40,12 +48,19 @@ const LogWorkoutModel: React.FC<Props> = ({ workouts, categories, muscleGroups, 
   const workout = workouts.find((w) => w.id === workoutId) ?? null
   const category = categories.find((c) => c.id === workout?.category_id) ?? null
   const isWeightTraining = category?.measurement_type === 'reps_weight'
+  const isCalisthenics = category?.measurement_type === 'calisthenics'
 
-  // Picking a target muscle first narrows the workout dropdown - helpful as the exercise list grows.
-  const narrowedWorkouts = useMemo(
-    () => (targetMuscleFilter === 'all' ? workouts : workouts.filter((w) => w.target_muscle.includes(targetMuscleFilter))),
-    [workouts, targetMuscleFilter]
-  )
+  const filterCategory = categories.find((c) => c.id === categoryFilter) ?? null
+  const showMuscleFilter = filterCategory?.measurement_type === 'reps_weight'
+
+  // Type narrows the workout list first; target muscle (only for Weight Training) narrows further.
+  const narrowedWorkouts = useMemo(() => {
+    let list = categoryFilter === 'all' ? workouts : workouts.filter((w) => w.category_id === categoryFilter)
+    if (showMuscleFilter && targetMuscleFilter !== 'all') {
+      list = list.filter((w) => w.target_muscle.includes(targetMuscleFilter))
+    }
+    return list
+  }, [workouts, categoryFilter, showMuscleFilter, targetMuscleFilter])
 
   useEffect(() => {
     if (workoutId && !narrowedWorkouts.some((w) => w.id === workoutId)) setWorkoutId('')
@@ -64,6 +79,15 @@ const LogWorkoutModel: React.FC<Props> = ({ workouts, categories, muscleGroups, 
       } else {
         setRows([blankRow()])
       }
+    } else if (category?.measurement_type === 'calisthenics') {
+      if (existing && existing.sets.length > 0) {
+        setCalisthenicsRows(existing.sets.map((s) => ({
+          id: crypto.randomUUID(),
+          value: workout?.calisthenics_metric === 'time' ? String(s.duration_seconds ?? '') : String(s.reps ?? ''),
+        })))
+      } else {
+        setCalisthenicsRows([blankSingleRow()])
+      }
     } else if (category?.measurement_type === 'distance_time') {
       const set = existing?.sets[0]
       if (set) {
@@ -77,7 +101,7 @@ const LogWorkoutModel: React.FC<Props> = ({ workouts, categories, muscleGroups, 
         setSeconds('')
       }
     }
-  }, [workoutId, logDate, sessions, category])
+  }, [workoutId, logDate, sessions, category, workout?.calisthenics_metric])
 
   const updateRow = (id: string, field: 'reps' | 'weight', value: string) => {
     setRows((prev) => prev.map((r) => (r.id === id ? { ...r, [field]: value } : r)))
@@ -89,6 +113,18 @@ const LogWorkoutModel: React.FC<Props> = ({ workouts, categories, muscleGroups, 
 
   const deleteRow = (id: string) => {
     setRows((prev) => prev.filter((r) => r.id !== id))
+  }
+
+  const updateCalisthenicsRow = (id: string, value: string) => {
+    setCalisthenicsRows((prev) => prev.map((r) => (r.id === id ? { ...r, value } : r)))
+  }
+
+  const duplicateCalisthenicsRow = (row: SingleValueRow) => {
+    setCalisthenicsRows((prev) => [...prev, { id: crypto.randomUUID(), value: row.value }])
+  }
+
+  const deleteCalisthenicsRow = (id: string) => {
+    setCalisthenicsRows((prev) => prev.filter((r) => r.id !== id))
   }
 
   const isEditingExisting = !!sessions.find((s) => s.workout_id === workoutId && s.log_date === logDate && s.sets.length > 0)
@@ -114,6 +150,17 @@ const LogWorkoutModel: React.FC<Props> = ({ workouts, categories, muscleGroups, 
         return
       }
       setsPayload = validRows.map((r) => ({ reps: Number(r.reps), weight: Number(r.weight), distance: null, duration_seconds: null }))
+    } else if (category.measurement_type === 'calisthenics') {
+      const validRows = calisthenicsRows.filter((r) => r.value.trim() !== '')
+      if (validRows.length === 0) {
+        setError(`Add at least one set (${workout.calisthenics_metric === 'time' ? 'seconds held' : 'reps'}).`)
+        return
+      }
+      setsPayload = validRows.map((r) =>
+        workout.calisthenics_metric === 'time'
+          ? { reps: null, weight: null, distance: null, duration_seconds: Number(r.value) }
+          : { reps: Number(r.value), weight: null, distance: null, duration_seconds: null }
+      )
     } else {
       const totalSeconds = (Number(minutes) || 0) * 60 + (Number(seconds) || 0)
       if (!distance.trim() || totalSeconds <= 0) {
@@ -183,15 +230,29 @@ const LogWorkoutModel: React.FC<Props> = ({ workouts, categories, muscleGroups, 
           </button>
         </div>
 
-        <label className="block mb-2 text-sm font-medium text-gray-300">Target Muscle</label>
+        <label className="block mb-2 text-sm font-medium text-gray-300">Type</label>
         <select
-          value={targetMuscleFilter}
-          onChange={(e) => setTargetMuscleFilter(e.target.value)}
+          value={categoryFilter}
+          onChange={(e) => setCategoryFilter(e.target.value)}
           className="w-full bg-[#0A0A0A] border border-[#303030] focus:border-white rounded-lg px-4 py-3 mb-4 text-white outline-none"
         >
-          <option value="all">All Target Muscles</option>
-          {muscleGroups.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+          <option value="all">All Types</option>
+          {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
+
+        {showMuscleFilter && (
+          <>
+            <label className="block mb-2 text-sm font-medium text-gray-300">Target Muscle</label>
+            <select
+              value={targetMuscleFilter}
+              onChange={(e) => setTargetMuscleFilter(e.target.value)}
+              className="w-full bg-[#0A0A0A] border border-[#303030] focus:border-white rounded-lg px-4 py-3 mb-4 text-white outline-none"
+            >
+              <option value="all">All Target Muscles</option>
+              {muscleGroups.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+            </select>
+          </>
+        )}
 
         <div className="grid grid-cols-2 gap-4 mb-4">
           <div>
@@ -245,10 +306,10 @@ const LogWorkoutModel: React.FC<Props> = ({ workouts, categories, muscleGroups, 
                     placeholder="Weight (kg)"
                     className="w-full bg-[#0A0A0A] border border-[#303030] focus:border-white rounded-lg px-3 py-2 text-white outline-none"
                   />
-                  <button onClick={() => duplicateRow(row)} className="text-gray-500 hover:text-white flex-shrink-0" title="Duplicate set">
+                  <button onClick={() => duplicateRow(row)} className="text-gray-500 hover:text-white shrink-0" title="Duplicate set">
                     <Copy className="w-4 h-4" />
                   </button>
-                  <button onClick={() => deleteRow(row.id)} className="text-gray-500 hover:text-red-500 flex-shrink-0" title="Remove set">
+                  <button onClick={() => deleteRow(row.id)} className="text-gray-500 hover:text-red-500 shrink-0" title="Remove set">
                     <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
@@ -263,7 +324,41 @@ const LogWorkoutModel: React.FC<Props> = ({ workouts, categories, muscleGroups, 
           </div>
         )}
 
-        {category && !isWeightTraining && (
+        {category && isCalisthenics && (
+          <div className="mb-4">
+            <label className="block mb-2 text-sm font-medium text-gray-300">
+              Sets ({workout?.calisthenics_metric === 'time' ? 'seconds held' : 'reps'})
+            </label>
+            <div className="flex flex-col gap-2">
+              {calisthenicsRows.map((row) => (
+                <div key={row.id} className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    min="0"
+                    value={row.value}
+                    onChange={(e) => updateCalisthenicsRow(row.id, e.target.value)}
+                    placeholder={workout?.calisthenics_metric === 'time' ? 'Seconds' : 'Reps'}
+                    className="w-full bg-[#0A0A0A] border border-[#303030] focus:border-white rounded-lg px-3 py-2 text-white outline-none"
+                  />
+                  <button onClick={() => duplicateCalisthenicsRow(row)} className="text-gray-500 hover:text-white shrink-0" title="Duplicate set">
+                    <Copy className="w-4 h-4" />
+                  </button>
+                  <button onClick={() => deleteCalisthenicsRow(row.id)} className="text-gray-500 hover:text-red-500 shrink-0" title="Remove set">
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+            <button
+              onClick={() => setCalisthenicsRows((prev) => [...prev, blankSingleRow()])}
+              className="mt-2 flex items-center gap-2 text-sm text-gray-300 hover:text-white"
+            >
+              <PlusCircle className="w-4 h-4" /> Add Set
+            </button>
+          </div>
+        )}
+
+        {category?.measurement_type === 'distance_time' && (
           <div className="grid grid-cols-3 gap-3 mb-4">
             <div>
               <label className="block mb-2 text-sm font-medium text-gray-300">Distance (km)</label>

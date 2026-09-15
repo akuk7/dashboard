@@ -2,9 +2,10 @@
 
 import React from 'react';
 import { Edit, X, Calendar } from 'lucide-react';
-import type { JournalEntry } from '../types/JournalTypes'; 
+import type { JournalEntry } from '../types/JournalTypes';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { formatDisplayIST } from '../lib/dateUtils';
 
 interface Props {
     entry: JournalEntry;
@@ -26,7 +27,7 @@ const EntryViewerModal: React.FC<Props> = ({ entry, onClose, onEdit }) => {
                         </h3>
                         <p className="text-sm text-gray-500 flex items-center gap-2 mt-1">
                             <Calendar className="w-4 h-4" />
-                            {new Date(entry.entry_date).toLocaleDateString()}
+                            {formatDisplayIST(entry.entry_date)}
                         </p>
                     </div>
                    

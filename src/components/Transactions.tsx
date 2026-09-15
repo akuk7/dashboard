@@ -156,8 +156,6 @@ const Transactions: React.FC = () => {
         transactions={transactions}
         accounts={accounts}
         categories={categories}
-        lendOutLoans={lendOutLoans}
-        lendInLoans={lendInLoans}
       />
       <BudgetPanel transactions={transactions} categories={categories} />
       <TransactionList
@@ -166,6 +164,7 @@ const Transactions: React.FC = () => {
         categories={categories}
         lendOutLoans={lendOutLoans}
         lendInLoans={lendInLoans}
+        onAdd={() => setEditorState({ mode: 'create' })}
         onEdit={(t) => setEditorState({ mode: 'edit', transaction: t })}
         onDelete={handleDeleteTransaction}
         onRepay={handleRepay}

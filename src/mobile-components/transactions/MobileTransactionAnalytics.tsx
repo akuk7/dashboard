@@ -2,8 +2,8 @@ import { useMemo, useState } from 'react'
 import { Pie } from 'react-chartjs-2'
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js'
 import type { Transaction, TransactionAccount, TransactionCategory } from '../../types/transaction'
-import type { LoanInfo } from '../../lib/loans'
-import { startOfMonthIST } from '../../lib/dateUtils'
+import { getLoansWithOutstanding } from '../../lib/loans'
+import { startOfMonthIST, todayIST } from '../../lib/dateUtils'
 
 ChartJS.register(ArcElement, Tooltip, Legend)
 
@@ -19,20 +19,28 @@ type Props = {
   transactions: Transaction[]
   accounts: TransactionAccount[]
   categories: TransactionCategory[]
-  lendOutLoans: LoanInfo[]
-  lendInLoans: LoanInfo[]
 }
 
-const MobileTransactionAnalytics: React.FC<Props> = ({ transactions, accounts, categories, lendOutLoans, lendInLoans }) => {
+const MobileTransactionAnalytics: React.FC<Props> = ({ transactions, accounts, categories }) => {
   const [summaryStartDate, setSummaryStartDate] = useState(startOfMonthIST())
   const [summaryEndDate, setSummaryEndDate] = useState('')
+  // "As of" date for balance/net-worth/lent - defaults to today, includes that day. Independent
+  // of the cash-flow range below, which is a period total, not a point-in-time snapshot.
+  const [balanceAsOfDate, setBalanceAsOfDate] = useState(todayIST())
+
+  const transactionsAsOf = useMemo(
+    () => transactions.filter((t) => t.transaction_date <= balanceAsOfDate),
+    [transactions, balanceAsOfDate]
+  )
+  const lendOutLoans = useMemo(() => getLoansWithOutstanding(transactionsAsOf, 'lend_out'), [transactionsAsOf])
+  const lendInLoans = useMemo(() => getLoansWithOutstanding(transactionsAsOf, 'lend_in'), [transactionsAsOf])
 
   const balances = useMemo(() => {
     const map: Record<string, number> = {}
     accounts.forEach((a) => {
       map[a.id] = a.opening_balance
     })
-    transactions.forEach((t) => {
+    transactionsAsOf.forEach((t) => {
       if (!t.is_temporary) return
       if (t.type === 'credit' || t.type === 'lend_in' || t.type === 'repayment_received') {
         map[t.account_id] = (map[t.account_id] ?? 0) + t.amount
@@ -44,7 +52,7 @@ const MobileTransactionAnalytics: React.FC<Props> = ({ transactions, accounts, c
       }
     })
     return map
-  }, [accounts, transactions])
+  }, [accounts, transactionsAsOf])
 
   const netBalance = useMemo(
     () => accounts.reduce((sum, a) => sum + (balances[a.id] ?? a.opening_balance), 0),
@@ -114,6 +122,15 @@ const MobileTransactionAnalytics: React.FC<Props> = ({ transactions, accounts, c
 
   return (
     <div className="px-4 pt-4 flex flex-col gap-4">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs text-gray-500">Balances as of</span>
+        <input
+          type="date"
+          value={balanceAsOfDate}
+          onChange={(e) => setBalanceAsOfDate(e.target.value)}
+          className="bg-[#0A0A0A] border border-[#303030] rounded-lg px-2 py-1 text-xs text-gray-300"
+        />
+      </div>
       <div className="grid grid-cols-3 gap-2">
         <div className="p-3 bg-[#121212] rounded-xl border border-white/40">
           <p className="text-[11px] text-gray-500 mb-1">Net Balance</p>

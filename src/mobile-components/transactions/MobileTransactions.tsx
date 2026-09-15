@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { PlusCircle, List, BarChart3, SlidersHorizontal, Edit, Trash2, HandCoins, ArrowLeftRight, PiggyBank } from 'lucide-react'
+import { PlusCircle, List, BarChart3, SlidersHorizontal, Edit, Trash2, HandCoins, ArrowLeftRight, PiggyBank, Search } from 'lucide-react'
 import supabase from '../../lib/supabase'
 import type { Transaction, TransactionAccount, TransactionCategory, TransactionType } from '../../types/transaction'
 import { getLoansWithOutstanding } from '../../lib/loans'
@@ -7,7 +7,7 @@ import AddTransaction from '../../components/AddTransaction'
 import MobileHeader from '../MobileHeader'
 import MobileTransactionAnalytics from './MobileTransactionAnalytics'
 import MobileBudget from './MobileBudget'
-import { startOfMonthIST } from '../../lib/dateUtils'
+import { formatDisplayIST, startOfMonthIST } from '../../lib/dateUtils'
 
 type EditorState =
   | { mode: 'closed' }
@@ -56,6 +56,7 @@ const MobileTransactions: React.FC = () => {
   const [categoryFilter, setCategoryFilter] = useState('all')
   const [fromDate, setFromDate] = useState(startOfMonthIST())
   const [toDate, setToDate] = useState('')
+  const [search, setSearch] = useState('')
 
   const lendOutLoans = useMemo(() => getLoansWithOutstanding(transactions, 'lend_out'), [transactions])
   const lendInLoans = useMemo(() => getLoansWithOutstanding(transactions, 'lend_in'), [transactions])
@@ -100,6 +101,7 @@ const MobileTransactions: React.FC = () => {
   }, [lendOutLoans, lendInLoans])
 
   const filtered = useMemo(() => {
+    const query = search.trim().toLowerCase()
     return transactions.filter((t) => {
       if (typeFilter === 'non_transfer' && t.type === 'internal_transfer') return false
       if (typeFilter !== 'non_transfer' && typeFilter !== 'all' && t.type !== typeFilter) return false
@@ -107,9 +109,10 @@ const MobileTransactions: React.FC = () => {
       if (categoryFilter !== 'all' && t.category_id !== categoryFilter) return false
       if (fromDate && t.transaction_date < fromDate) return false
       if (toDate && t.transaction_date > toDate) return false
+      if (query && !t.description.toLowerCase().includes(query)) return false
       return true
     })
-  }, [transactions, typeFilter, accountFilter, categoryFilter, fromDate, toDate])
+  }, [transactions, typeFilter, accountFilter, categoryFilter, fromDate, toDate, search])
 
   const handleTransactionSaved = (t: Transaction) => {
     setTransactions((prev) => {
@@ -179,13 +182,21 @@ const MobileTransactions: React.FC = () => {
           transactions={transactions}
           accounts={accounts}
           categories={categories}
-          lendOutLoans={lendOutLoans}
-          lendInLoans={lendInLoans}
         />
       ) : view === 'budget' ? (
         <MobileBudget transactions={transactions} categories={categories} />
       ) : (
         <div className="px-4 pt-4">
+          <div className="relative mb-3">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search description..."
+              className="w-full bg-[#0A0A0A] border border-[#303030] rounded-lg pl-9 pr-3 py-2 text-sm text-gray-300"
+            />
+          </div>
           <button
             onClick={() => setShowFilters((v) => !v)}
             className="flex items-center gap-2 mb-3 text-sm text-gray-300 border border-[#303030] rounded-lg px-3 py-2 bg-[#121212]"
@@ -271,7 +282,7 @@ const MobileTransactions: React.FC = () => {
                     </span>
                   </div>
                   <p className="text-xs text-gray-500 mt-1">
-                    {t.transaction_date} &middot; {accountsById[t.account_id] ?? 'Unknown'}
+                    {formatDisplayIST(t.transaction_date)} &middot; {accountsById[t.account_id] ?? 'Unknown'}
                     {t.type === 'internal_transfer' && t.to_account_id
                       ? ` → ${accountsById[t.to_account_id] ?? 'Unknown'}`
                       : ''}
