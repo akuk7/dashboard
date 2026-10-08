@@ -27,7 +27,7 @@ const AddTransaction: React.FC<Props> = ({ transaction, prefill, accounts, categ
   const [categoryId, setCategoryId] = useState('')
   const [transactionDate, setTransactionDate] = useState(todayIST())
   const [isBigLoan, setIsBigLoan] = useState(false)
-  const [repaysTransactionId, setRepaysTransactionId] = useState('')
+  const [relatedLoanId, setRelatedLoanId] = useState('')
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -40,7 +40,7 @@ const AddTransaction: React.FC<Props> = ({ transaction, prefill, accounts, categ
       setCategoryId(transaction.category_id ?? '')
       setTransactionDate(transaction.transaction_date)
       setIsBigLoan(!transaction.is_temporary)
-      setRepaysTransactionId(transaction.repays_transaction_id ?? '')
+      setRelatedLoanId(transaction.related_loan_id ?? '')
     } else {
       setDescription(prefill?.description ?? '')
       setAmount(prefill?.amount !== undefined ? String(prefill.amount) : '')
@@ -50,29 +50,36 @@ const AddTransaction: React.FC<Props> = ({ transaction, prefill, accounts, categ
       setCategoryId('')
       setTransactionDate(todayIST())
       setIsBigLoan(false)
-      setRepaysTransactionId(prefill?.repays_transaction_id ?? '')
+      setRelatedLoanId(prefill?.related_loan_id ?? '')
     }
   }, [transaction, prefill, accounts])
 
   const isTransfer = type === 'internal_transfer'
   const isLend = type === 'lend_out' || type === 'lend_in'
   const isRepayment = type === 'repayment_received' || type === 'repayment_made'
-  const repaymentLoans = type === 'repayment_received' ? lendOutLoans : lendInLoans
+  const isTopup = type === 'lend_out_topup' || type === 'lend_in_topup'
+  const linkedLoanType: 'lend_out' | 'lend_in' | null =
+    type === 'repayment_received' || type === 'lend_out_topup' ? 'lend_out'
+    : type === 'repayment_made' || type === 'lend_in_topup' ? 'lend_in'
+    : null
+  const linkedLoans = linkedLoanType === 'lend_out' ? lendOutLoans : linkedLoanType === 'lend_in' ? lendInLoans : []
+  const selectedLinkedLoan = linkedLoans.find(l => l.transaction.id === relatedLoanId)
 
   const handleTypeChange = (nextType: TransactionType) => {
     setType(nextType)
     if (nextType !== 'internal_transfer') setToAccountId('')
     if (nextType !== 'lend_out' && nextType !== 'lend_in') setIsBigLoan(false)
-    if (nextType !== 'repayment_received' && nextType !== 'repayment_made') setRepaysTransactionId('')
+    if (nextType !== 'repayment_received' && nextType !== 'repayment_made' && nextType !== 'lend_out_topup' && nextType !== 'lend_in_topup') {
+      setRelatedLoanId('')
+    }
   }
 
   const handleLoanPicked = (loanId: string) => {
-    setRepaysTransactionId(loanId)
-    const loan = repaymentLoans.find(l => l.transaction.id === loanId)
-    if (loan) {
-      setAccountId(loan.transaction.account_id)
-      setAmount(String(Math.max(0, loan.outstanding)))
-    }
+    setRelatedLoanId(loanId)
+    const loan = linkedLoans.find(l => l.transaction.id === loanId)
+    if (!loan) return
+    setAccountId(loan.transaction.account_id)
+    if (isRepayment) setAmount(String(Math.max(0, loan.outstanding)))
   }
 
   const handleSave = async () => {
@@ -85,8 +92,8 @@ const AddTransaction: React.FC<Props> = ({ transaction, prefill, accounts, categ
       setError('Pick a different destination account for the transfer.')
       return
     }
-    if (isRepayment && !repaysTransactionId) {
-      setError('Pick which loan this repayment is for.')
+    if ((isRepayment || isTopup) && !relatedLoanId) {
+      setError(isRepayment ? 'Pick which loan this repayment is for.' : 'Pick which loan this top-up is for.')
       return
     }
 
@@ -96,10 +103,10 @@ const AddTransaction: React.FC<Props> = ({ transaction, prefill, accounts, categ
       type,
       account_id: accountId,
       to_account_id: isTransfer ? toAccountId : null,
-      category_id: (isTransfer || isRepayment) ? null : (categoryId || null),
+      category_id: (isTransfer || isRepayment || isTopup) ? null : (categoryId || null),
       transaction_date: transactionDate,
-      is_temporary: isLend ? !isBigLoan : true,
-      repays_transaction_id: isRepayment ? repaysTransactionId : null,
+      is_temporary: isLend ? !isBigLoan : isTopup ? (selectedLinkedLoan?.transaction.is_temporary ?? true) : true,
+      related_loan_id: (isRepayment || isTopup) ? relatedLoanId : null,
     }
 
     const { data, error: saveError } = isEditing
@@ -160,6 +167,8 @@ const AddTransaction: React.FC<Props> = ({ transaction, prefill, accounts, categ
               <option value="credit">Credit</option>
               <option value="lend_out">Lend Out</option>
               <option value="lend_in">Lend In</option>
+              <option value="lend_out_topup">Lend Out (Top-up)</option>
+              <option value="lend_in_topup">Lend In (Top-up)</option>
               <option value="repayment_received">Repayment Received</option>
               <option value="repayment_made">Repayment Made</option>
               <option value="internal_transfer">Internal Transfer</option>
@@ -194,20 +203,20 @@ const AddTransaction: React.FC<Props> = ({ transaction, prefill, accounts, categ
                 {accounts.filter(a => a.id !== accountId).map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
               </select>
             </div>
-          ) : isRepayment ? (
+          ) : (isRepayment || isTopup) ? (
             <div>
               <label className="block mb-2 text-sm font-medium text-gray-300">Which Loan?</label>
               <select
-                value={repaysTransactionId}
+                value={relatedLoanId}
                 onChange={(e) => handleLoanPicked(e.target.value)}
                 className="w-full bg-[#0A0A0A] border border-[#303030] focus:border-white rounded-lg px-4 py-3 text-white outline-none"
               >
                 <option value="" disabled>Select loan</option>
-                {repaymentLoans
-                  .filter(l => l.outstanding > 0.001 || l.transaction.id === repaysTransactionId)
+                {linkedLoans
+                  .filter(l => !isRepayment || l.outstanding > 0.001 || l.transaction.id === relatedLoanId)
                   .map(l => (
                     <option key={l.transaction.id} value={l.transaction.id}>
-                      {l.transaction.description} - {l.outstanding.toFixed(2)} owed
+                      {l.transaction.description} - {l.outstanding.toFixed(2)} {isRepayment ? 'owed' : 'current'}
                     </option>
                   ))}
               </select>
@@ -248,6 +257,12 @@ const AddTransaction: React.FC<Props> = ({ transaction, prefill, accounts, categ
             This is a big loan / arrears, not a small personal {type === 'lend_out' ? 'lend' : 'borrow'}
             (won&apos;t affect account balance - only counted in Lent and Net Worth)
           </label>
+        )}
+
+        {isTopup && selectedLinkedLoan && (
+          <p className="text-xs text-gray-500 mb-4">
+            {selectedLinkedLoan.transaction.is_temporary ? 'Small personal' : 'Big loan/arrears'} status is inherited from the original loan.
+          </p>
         )}
 
         {error && <p className="text-red-400 text-sm mb-4">{error}</p>}

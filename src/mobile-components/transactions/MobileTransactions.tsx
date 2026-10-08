@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { PlusCircle, List, BarChart3, SlidersHorizontal, Edit, Trash2, HandCoins, ArrowLeftRight, PiggyBank, Search } from 'lucide-react'
+import { PlusCircle, List, BarChart3, SlidersHorizontal, Edit, Trash2, HandCoins, TrendingUp, ArrowLeftRight, PiggyBank, Search } from 'lucide-react'
 import supabase from '../../lib/supabase'
 import type { Transaction, TransactionAccount, TransactionCategory, TransactionType } from '../../types/transaction'
 import { getLoansWithOutstanding } from '../../lib/loans'
@@ -7,7 +7,7 @@ import AddTransaction from '../../components/AddTransaction'
 import MobileHeader from '../MobileHeader'
 import MobileTransactionAnalytics from './MobileTransactionAnalytics'
 import MobileBudget from './MobileBudget'
-import { formatDisplayIST, startOfMonthIST } from '../../lib/dateUtils'
+import { formatDisplayIST, startOfMonthIST, todayIST } from '../../lib/dateUtils'
 
 type EditorState =
   | { mode: 'closed' }
@@ -16,11 +16,20 @@ type EditorState =
 
 type TypeFilter = 'non_transfer' | 'all' | TransactionType
 
+// Picking any of these in the Type filter jumps the date range to cover the full lending history
+// (31 Jul 2026, the day before any loan data exists) through today, instead of the usual
+// start-of-month default - otherwise an old loan/repayment would silently fall outside the range.
+const LEND_RELATED_TYPES = new Set<TransactionType>([
+  'lend_out', 'lend_in', 'lend_out_topup', 'lend_in_topup', 'repayment_received', 'repayment_made',
+])
+
 const typeBadge = (type: TransactionType) => {
   if (type === 'credit') return { label: 'Credit', color: 'text-green-400 border-green-400/30 bg-green-400/10' }
   if (type === 'debit') return { label: 'Debit', color: 'text-red-400 border-red-400/30 bg-red-400/10' }
   if (type === 'lend_out') return { label: 'Lent Out', color: 'text-amber-400 border-amber-400/30 bg-amber-400/10' }
   if (type === 'lend_in') return { label: 'Lent In', color: 'text-cyan-400 border-cyan-400/30 bg-cyan-400/10' }
+  if (type === 'lend_out_topup') return { label: 'Lend Out (Top-up)', color: 'text-amber-400 border-amber-400/30 bg-amber-400/10' }
+  if (type === 'lend_in_topup') return { label: 'Lend In (Top-up)', color: 'text-cyan-400 border-cyan-400/30 bg-cyan-400/10' }
   if (type === 'repayment_received') return { label: 'Repaid', color: 'text-green-400 border-green-400/30 bg-green-400/10' }
   if (type === 'repayment_made') return { label: 'Repaid', color: 'text-red-400 border-red-400/30 bg-red-400/10' }
   return { label: 'Transfer', color: 'text-blue-400 border-blue-400/30 bg-blue-400/10' }
@@ -29,9 +38,11 @@ const typeBadge = (type: TransactionType) => {
 const AMOUNT_SIGN: Partial<Record<TransactionType, '-' | '+'>> = {
   debit: '-',
   lend_out: '-',
+  lend_out_topup: '-',
   repayment_made: '-',
   credit: '+',
   lend_in: '+',
+  lend_in_topup: '+',
   repayment_received: '+',
 }
 
@@ -114,6 +125,14 @@ const MobileTransactions: React.FC = () => {
     })
   }, [transactions, typeFilter, accountFilter, categoryFilter, fromDate, toDate, search])
 
+  const handleTypeFilterChange = (value: TypeFilter) => {
+    setTypeFilter(value)
+    if (LEND_RELATED_TYPES.has(value as TransactionType)) {
+      setFromDate('2026-07-31')
+      setToDate(todayIST())
+    }
+  }
+
   const handleTransactionSaved = (t: Transaction) => {
     setTransactions((prev) => {
       const exists = prev.some((x) => x.id === t.id)
@@ -144,7 +163,21 @@ const MobileTransactions: React.FC = () => {
         account_id: loan.account_id,
         amount: Math.max(0, outstanding),
         description: `Repayment: ${loan.description}`,
-        repays_transaction_id: loan.id,
+        related_loan_id: loan.id,
+      },
+    })
+  }
+
+  const handleTopup = (loan: Transaction) => {
+    const topupType: TransactionType = loan.type === 'lend_out' ? 'lend_out_topup' : 'lend_in_topup'
+
+    setEditorState({
+      mode: 'create',
+      prefill: {
+        type: topupType,
+        account_id: loan.account_id,
+        description: `Top-up: ${loan.description}`,
+        related_loan_id: loan.id,
       },
     })
   }
@@ -208,7 +241,7 @@ const MobileTransactions: React.FC = () => {
             <div className="grid grid-cols-2 gap-2 mb-4">
               <select
                 value={typeFilter}
-                onChange={(e) => setTypeFilter(e.target.value as TypeFilter)}
+                onChange={(e) => handleTypeFilterChange(e.target.value as TypeFilter)}
                 className="col-span-2 bg-[#0A0A0A] border border-[#303030] rounded-lg px-3 py-2 text-sm text-gray-300"
               >
                 <option value="non_transfer">Exclude Transfers</option>
@@ -217,6 +250,8 @@ const MobileTransactions: React.FC = () => {
                 <option value="credit">Credit Only</option>
                 <option value="lend_out">Lent Out Only</option>
                 <option value="lend_in">Lent In Only</option>
+                <option value="lend_out_topup">Lend Out Top-ups</option>
+                <option value="lend_in_topup">Lend In Top-ups</option>
                 <option value="repayment_received">Repayments Received</option>
                 <option value="repayment_made">Repayments Made</option>
                 <option value="internal_transfer">Transfers Only</option>
@@ -297,6 +332,11 @@ const MobileTransactions: React.FC = () => {
                       {badge.label}
                     </span>
                     <div className="flex items-center gap-3">
+                      {(t.type === 'lend_out' || t.type === 'lend_in') && (
+                        <button onClick={() => handleTopup(t)} className="text-gray-500 hover:text-amber-400">
+                          <TrendingUp className="w-4 h-4" />
+                        </button>
+                      )}
                       {(t.type === 'lend_out' || t.type === 'lend_in') && (outstandingByLoanId[t.id] ?? 0) > 0.001 && (
                         <button onClick={() => handleRepay(t)} className="text-gray-500 hover:text-green-400">
                           <HandCoins className="w-4 h-4" />

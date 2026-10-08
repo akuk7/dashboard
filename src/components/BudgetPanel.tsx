@@ -196,7 +196,7 @@ const BudgetPanel: React.FC<Props> = ({ categories, transactions }) => {
 
           <div className="flex flex-col gap-3">
             {rows.map((r) => {
-              const pct = r.hasBudget && r.budgeted > 0 ? Math.min(100, (r.spent / r.budgeted) * 100) : 0
+              const pct = r.hasBudget && r.budgeted > 0 ? Math.max(0, Math.min(100, (r.spent / r.budgeted) * 100)) : 0
               const multiplier = r.hasBudget && r.budgeted > 0 ? `${(r.spent / r.budgeted).toFixed(2)}x` : null
               const checked = !uncheckedIds.has(r.id)
               return (

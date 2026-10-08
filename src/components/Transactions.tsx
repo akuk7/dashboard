@@ -117,7 +117,21 @@ const Transactions: React.FC = () => {
         account_id: loan.account_id,
         amount: Math.max(0, outstanding),
         description: `Repayment: ${loan.description}`,
-        repays_transaction_id: loan.id,
+        related_loan_id: loan.id,
+      },
+    })
+  }
+
+  const handleTopup = (loan: Transaction) => {
+    const topupType: TransactionType = loan.type === 'lend_out' ? 'lend_out_topup' : 'lend_in_topup'
+
+    setEditorState({
+      mode: 'create',
+      prefill: {
+        type: topupType,
+        account_id: loan.account_id,
+        description: `Top-up: ${loan.description}`,
+        related_loan_id: loan.id,
       },
     })
   }
@@ -168,6 +182,7 @@ const Transactions: React.FC = () => {
         onEdit={(t) => setEditorState({ mode: 'edit', transaction: t })}
         onDelete={handleDeleteTransaction}
         onRepay={handleRepay}
+        onTopup={handleTopup}
       />
 
       {editorState.mode !== 'closed' && (

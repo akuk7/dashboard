@@ -1,10 +1,17 @@
 import React, { useMemo, useState } from 'react'
-import { Trash2, Edit, ArrowLeftRight, HandCoins, PlusCircle, Search } from 'lucide-react'
+import { Trash2, Edit, ArrowLeftRight, HandCoins, TrendingUp, PlusCircle, Search } from 'lucide-react'
 import type { Transaction, TransactionAccount, TransactionCategory, TransactionType } from '../types/transaction'
 import type { LoanInfo } from '../lib/loans'
-import { formatDisplayIST, startOfMonthIST } from '../lib/dateUtils'
+import { formatDisplayIST, startOfMonthIST, todayIST } from '../lib/dateUtils'
 
 type TypeFilter = 'non_transfer' | 'all' | TransactionType
+
+// Picking any of these in the Type filter jumps the date range to cover the full lending history
+// (31 Jul 2026, the day before any loan data exists) through today, instead of the usual
+// start-of-month default - otherwise an old loan/repayment would silently fall outside the range.
+const LEND_RELATED_TYPES = new Set<TransactionType>([
+  'lend_out', 'lend_in', 'lend_out_topup', 'lend_in_topup', 'repayment_received', 'repayment_made',
+])
 
 type Props = {
   transactions: Transaction[]
@@ -16,6 +23,7 @@ type Props = {
   onEdit: (transaction: Transaction) => void
   onDelete: (id: string) => void
   onRepay: (loan: Transaction) => void
+  onTopup: (loan: Transaction) => void
 }
 
 const typeBadge = (type: TransactionType) => {
@@ -23,6 +31,8 @@ const typeBadge = (type: TransactionType) => {
   if (type === 'debit') return { label: 'Debit', color: 'text-red-400 border-red-400/30 bg-red-400/10' }
   if (type === 'lend_out') return { label: 'Lent Out', color: 'text-amber-400 border-amber-400/30 bg-amber-400/10' }
   if (type === 'lend_in') return { label: 'Lent In', color: 'text-cyan-400 border-cyan-400/30 bg-cyan-400/10' }
+  if (type === 'lend_out_topup') return { label: 'Lend Out (Top-up)', color: 'text-amber-400 border-amber-400/30 bg-amber-400/10' }
+  if (type === 'lend_in_topup') return { label: 'Lend In (Top-up)', color: 'text-cyan-400 border-cyan-400/30 bg-cyan-400/10' }
   if (type === 'repayment_received') return { label: 'Repayment Received', color: 'text-green-400 border-green-400/30 bg-green-400/10' }
   if (type === 'repayment_made') return { label: 'Repayment Made', color: 'text-red-400 border-red-400/30 bg-red-400/10' }
   return { label: 'Transfer', color: 'text-blue-400 border-blue-400/30 bg-blue-400/10' }
@@ -31,13 +41,15 @@ const typeBadge = (type: TransactionType) => {
 const AMOUNT_SIGN: Partial<Record<TransactionType, '-' | '+'>> = {
   debit: '-',
   lend_out: '-',
+  lend_out_topup: '-',
   repayment_made: '-',
   credit: '+',
   lend_in: '+',
+  lend_in_topup: '+',
   repayment_received: '+',
 }
 
-const TransactionList: React.FC<Props> = ({ transactions, accounts, categories, lendOutLoans, lendInLoans, onAdd, onEdit, onDelete, onRepay }) => {
+const TransactionList: React.FC<Props> = ({ transactions, accounts, categories, lendOutLoans, lendInLoans, onAdd, onEdit, onDelete, onRepay, onTopup }) => {
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('non_transfer')
   const [accountFilter, setAccountFilter] = useState('all')
   const [categoryFilter, setCategoryFilter] = useState('all')
@@ -77,6 +89,14 @@ const TransactionList: React.FC<Props> = ({ transactions, accounts, categories, 
     })
   }, [transactions, typeFilter, accountFilter, categoryFilter, fromDate, toDate, search])
 
+  const handleTypeFilterChange = (value: TypeFilter) => {
+    setTypeFilter(value)
+    if (LEND_RELATED_TYPES.has(value as TransactionType)) {
+      setFromDate('2026-07-31')
+      setToDate(todayIST())
+    }
+  }
+
   return (
     <div className="p-6 border border-[#303030] shadow-md rounded-xl text-gray-100 mt-6">
       <div className="flex flex-wrap justify-between items-center mb-4 border-b border-[#303030] pb-3 gap-3">
@@ -104,7 +124,7 @@ const TransactionList: React.FC<Props> = ({ transactions, accounts, categories, 
 
           <select
             value={typeFilter}
-            onChange={(e) => setTypeFilter(e.target.value as TypeFilter)}
+            onChange={(e) => handleTypeFilterChange(e.target.value as TypeFilter)}
             className="bg-[#0A0A0A] border border-[#303030] rounded-lg px-3 py-1 text-sm text-gray-300"
           >
             <option value="non_transfer">Exclude Transfers</option>
@@ -113,6 +133,8 @@ const TransactionList: React.FC<Props> = ({ transactions, accounts, categories, 
             <option value="credit">Credit Only</option>
             <option value="lend_out">Lent Out Only</option>
             <option value="lend_in">Lent In Only</option>
+            <option value="lend_out_topup">Lend Out Top-ups</option>
+            <option value="lend_in_topup">Lend In Top-ups</option>
             <option value="repayment_received">Repayments Received</option>
             <option value="repayment_made">Repayments Made</option>
             <option value="internal_transfer">Transfers Only</option>
@@ -184,6 +206,15 @@ const TransactionList: React.FC<Props> = ({ transactions, accounts, categories, 
                 <span className="text-sm font-bold text-white w-24 text-right">
                   {AMOUNT_SIGN[t.type] ?? ''}{t.amount.toFixed(2)}
                 </span>
+                {(t.type === 'lend_out' || t.type === 'lend_in') && (
+                  <button
+                    onClick={() => onTopup(t)}
+                    className="text-gray-600 hover:text-amber-400 p-1 rounded-full transition"
+                    title="Add to this loan"
+                  >
+                    <TrendingUp className="w-4 h-4" />
+                  </button>
+                )}
                 {(t.type === 'lend_out' || t.type === 'lend_in') && (outstandingByLoanId[t.id] ?? 0) > 0.001 && (
                   <button
                     onClick={() => onRepay(t)}

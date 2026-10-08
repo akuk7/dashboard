@@ -59,8 +59,8 @@ const TransactionDashboard: React.FC<Props> = ({ transactions, accounts, categor
     accounts.forEach(a => { map[a.id] = a.opening_balance })
     transactionsAsOf.forEach(t => {
       if (!t.is_temporary) return
-      if (t.type === 'credit' || t.type === 'lend_in' || t.type === 'repayment_received') map[t.account_id] = (map[t.account_id] ?? 0) + t.amount
-      else if (t.type === 'debit' || t.type === 'lend_out' || t.type === 'repayment_made') map[t.account_id] = (map[t.account_id] ?? 0) - t.amount
+      if (t.type === 'credit' || t.type === 'lend_in' || t.type === 'lend_in_topup' || t.type === 'repayment_received') map[t.account_id] = (map[t.account_id] ?? 0) + t.amount
+      else if (t.type === 'debit' || t.type === 'lend_out' || t.type === 'lend_out_topup' || t.type === 'repayment_made') map[t.account_id] = (map[t.account_id] ?? 0) - t.amount
       else if (t.type === 'internal_transfer') {
         map[t.account_id] = (map[t.account_id] ?? 0) - t.amount
         if (t.to_account_id) map[t.to_account_id] = (map[t.to_account_id] ?? 0) + t.amount
@@ -115,13 +115,16 @@ const TransactionDashboard: React.FC<Props> = ({ transactions, accounts, categor
   const categoryChart = useMemo(() => {
     const totals: Record<string, number> = {}
     transactions
-      .filter(t => t.type === 'debit' && t.transaction_date >= summaryStartDate && (!summaryEndDate || t.transaction_date <= summaryEndDate))
+      .filter(t =>
+        (t.type === 'debit' || (t.type === 'credit' && t.category_id)) &&
+        t.transaction_date >= summaryStartDate && (!summaryEndDate || t.transaction_date <= summaryEndDate)
+      )
       .forEach(t => {
         const key = t.category_id ?? 'uncategorized'
-        totals[key] = (totals[key] ?? 0) + t.amount
+        totals[key] = (totals[key] ?? 0) + (t.type === 'credit' ? -t.amount : t.amount)
       })
 
-    const entries = Object.entries(totals)
+    const entries = Object.entries(totals).filter(([, amount]) => amount > 0)
     const labels = entries.map(([id]) =>
       id === 'uncategorized' ? 'Uncategorized' : (categories.find(c => c.id === id)?.name ?? 'Unknown')
     )
