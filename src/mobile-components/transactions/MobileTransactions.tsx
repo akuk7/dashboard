@@ -7,7 +7,7 @@ import AddTransaction from '../../components/AddTransaction'
 import MobileHeader from '../MobileHeader'
 import MobileTransactionAnalytics from './MobileTransactionAnalytics'
 import MobileBudget from './MobileBudget'
-import { formatDisplayIST, startOfMonthIST } from '../../lib/dateUtils'
+import { formatDisplayIST, startOfMonthIST, todayIST } from '../../lib/dateUtils'
 
 type EditorState =
   | { mode: 'closed' }
@@ -15,6 +15,13 @@ type EditorState =
   | { mode: 'edit'; transaction: Transaction }
 
 type TypeFilter = 'non_transfer' | 'all' | TransactionType
+
+// Picking any of these in the Type filter jumps the date range to cover the full lending history
+// (31 Jul 2026, the day before any loan data exists) through today, instead of the usual
+// start-of-month default - otherwise an old loan/repayment would silently fall outside the range.
+const LEND_RELATED_TYPES = new Set<TransactionType>([
+  'lend_out', 'lend_in', 'lend_out_topup', 'lend_in_topup', 'repayment_received', 'repayment_made',
+])
 
 const typeBadge = (type: TransactionType) => {
   if (type === 'credit') return { label: 'Credit', color: 'text-green-400 border-green-400/30 bg-green-400/10' }
@@ -117,6 +124,14 @@ const MobileTransactions: React.FC = () => {
       return true
     })
   }, [transactions, typeFilter, accountFilter, categoryFilter, fromDate, toDate, search])
+
+  const handleTypeFilterChange = (value: TypeFilter) => {
+    setTypeFilter(value)
+    if (LEND_RELATED_TYPES.has(value as TransactionType)) {
+      setFromDate('2026-07-31')
+      setToDate(todayIST())
+    }
+  }
 
   const handleTransactionSaved = (t: Transaction) => {
     setTransactions((prev) => {
@@ -226,7 +241,7 @@ const MobileTransactions: React.FC = () => {
             <div className="grid grid-cols-2 gap-2 mb-4">
               <select
                 value={typeFilter}
-                onChange={(e) => setTypeFilter(e.target.value as TypeFilter)}
+                onChange={(e) => handleTypeFilterChange(e.target.value as TypeFilter)}
                 className="col-span-2 bg-[#0A0A0A] border border-[#303030] rounded-lg px-3 py-2 text-sm text-gray-300"
               >
                 <option value="non_transfer">Exclude Transfers</option>

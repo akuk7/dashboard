@@ -2,9 +2,16 @@ import React, { useMemo, useState } from 'react'
 import { Trash2, Edit, ArrowLeftRight, HandCoins, TrendingUp, PlusCircle, Search } from 'lucide-react'
 import type { Transaction, TransactionAccount, TransactionCategory, TransactionType } from '../types/transaction'
 import type { LoanInfo } from '../lib/loans'
-import { formatDisplayIST, startOfMonthIST } from '../lib/dateUtils'
+import { formatDisplayIST, startOfMonthIST, todayIST } from '../lib/dateUtils'
 
 type TypeFilter = 'non_transfer' | 'all' | TransactionType
+
+// Picking any of these in the Type filter jumps the date range to cover the full lending history
+// (31 Jul 2026, the day before any loan data exists) through today, instead of the usual
+// start-of-month default - otherwise an old loan/repayment would silently fall outside the range.
+const LEND_RELATED_TYPES = new Set<TransactionType>([
+  'lend_out', 'lend_in', 'lend_out_topup', 'lend_in_topup', 'repayment_received', 'repayment_made',
+])
 
 type Props = {
   transactions: Transaction[]
@@ -82,6 +89,14 @@ const TransactionList: React.FC<Props> = ({ transactions, accounts, categories, 
     })
   }, [transactions, typeFilter, accountFilter, categoryFilter, fromDate, toDate, search])
 
+  const handleTypeFilterChange = (value: TypeFilter) => {
+    setTypeFilter(value)
+    if (LEND_RELATED_TYPES.has(value as TransactionType)) {
+      setFromDate('2026-07-31')
+      setToDate(todayIST())
+    }
+  }
+
   return (
     <div className="p-6 border border-[#303030] shadow-md rounded-xl text-gray-100 mt-6">
       <div className="flex flex-wrap justify-between items-center mb-4 border-b border-[#303030] pb-3 gap-3">
@@ -109,7 +124,7 @@ const TransactionList: React.FC<Props> = ({ transactions, accounts, categories, 
 
           <select
             value={typeFilter}
-            onChange={(e) => setTypeFilter(e.target.value as TypeFilter)}
+            onChange={(e) => handleTypeFilterChange(e.target.value as TypeFilter)}
             className="bg-[#0A0A0A] border border-[#303030] rounded-lg px-3 py-1 text-sm text-gray-300"
           >
             <option value="non_transfer">Exclude Transfers</option>
