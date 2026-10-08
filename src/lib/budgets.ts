@@ -34,7 +34,11 @@ export const REPAYMENT_BUDGET_KEY = '__repayment__'
 // TransactionDashboard.tsx's spending pie chart already uses, so budget "spent" always agrees
 // with it. Uncategorized (null category_id) debit spend is bucketed separately. repayment_made
 // transactions (paying back something you borrowed) are bucketed under REPAYMENT_BUDGET_KEY -
-// repayment_received is incoming money, not spend, so it's excluded entirely.
+// repayment_received is incoming money, not spend, so it's excluded entirely. A credit transaction
+// that's been assigned a category (e.g. a friend's UPI reimbursement for a shared dinner tagged
+// "Food") nets *against* that category's spend instead of being ignored, so paying on credit and
+// getting reimbursed separately still shows your actual net spend. Uncategorized credit is just
+// income and never touches spend.
 export function computeCategorySpend(
   transactions: Transaction[],
   month: number,
@@ -51,6 +55,8 @@ export function computeCategorySpend(
     if (t.type === 'debit') {
       if (t.category_id) byCategory[t.category_id] = (byCategory[t.category_id] ?? 0) + t.amount
       else uncategorized += t.amount
+    } else if (t.type === 'credit' && t.category_id) {
+      byCategory[t.category_id] = (byCategory[t.category_id] ?? 0) - t.amount
     } else if (t.type === 'repayment_made') {
       byCategory[REPAYMENT_BUDGET_KEY] = (byCategory[REPAYMENT_BUDGET_KEY] ?? 0) + t.amount
     }

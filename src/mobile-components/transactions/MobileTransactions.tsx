@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { PlusCircle, List, BarChart3, SlidersHorizontal, Edit, Trash2, HandCoins, ArrowLeftRight, PiggyBank, Search } from 'lucide-react'
+import { PlusCircle, List, BarChart3, SlidersHorizontal, Edit, Trash2, HandCoins, TrendingUp, ArrowLeftRight, PiggyBank, Search } from 'lucide-react'
 import supabase from '../../lib/supabase'
 import type { Transaction, TransactionAccount, TransactionCategory, TransactionType } from '../../types/transaction'
 import { getLoansWithOutstanding } from '../../lib/loans'
@@ -21,6 +21,8 @@ const typeBadge = (type: TransactionType) => {
   if (type === 'debit') return { label: 'Debit', color: 'text-red-400 border-red-400/30 bg-red-400/10' }
   if (type === 'lend_out') return { label: 'Lent Out', color: 'text-amber-400 border-amber-400/30 bg-amber-400/10' }
   if (type === 'lend_in') return { label: 'Lent In', color: 'text-cyan-400 border-cyan-400/30 bg-cyan-400/10' }
+  if (type === 'lend_out_topup') return { label: 'Lend Out (Top-up)', color: 'text-amber-400 border-amber-400/30 bg-amber-400/10' }
+  if (type === 'lend_in_topup') return { label: 'Lend In (Top-up)', color: 'text-cyan-400 border-cyan-400/30 bg-cyan-400/10' }
   if (type === 'repayment_received') return { label: 'Repaid', color: 'text-green-400 border-green-400/30 bg-green-400/10' }
   if (type === 'repayment_made') return { label: 'Repaid', color: 'text-red-400 border-red-400/30 bg-red-400/10' }
   return { label: 'Transfer', color: 'text-blue-400 border-blue-400/30 bg-blue-400/10' }
@@ -29,9 +31,11 @@ const typeBadge = (type: TransactionType) => {
 const AMOUNT_SIGN: Partial<Record<TransactionType, '-' | '+'>> = {
   debit: '-',
   lend_out: '-',
+  lend_out_topup: '-',
   repayment_made: '-',
   credit: '+',
   lend_in: '+',
+  lend_in_topup: '+',
   repayment_received: '+',
 }
 
@@ -144,7 +148,21 @@ const MobileTransactions: React.FC = () => {
         account_id: loan.account_id,
         amount: Math.max(0, outstanding),
         description: `Repayment: ${loan.description}`,
-        repays_transaction_id: loan.id,
+        related_loan_id: loan.id,
+      },
+    })
+  }
+
+  const handleTopup = (loan: Transaction) => {
+    const topupType: TransactionType = loan.type === 'lend_out' ? 'lend_out_topup' : 'lend_in_topup'
+
+    setEditorState({
+      mode: 'create',
+      prefill: {
+        type: topupType,
+        account_id: loan.account_id,
+        description: `Top-up: ${loan.description}`,
+        related_loan_id: loan.id,
       },
     })
   }
@@ -217,6 +235,8 @@ const MobileTransactions: React.FC = () => {
                 <option value="credit">Credit Only</option>
                 <option value="lend_out">Lent Out Only</option>
                 <option value="lend_in">Lent In Only</option>
+                <option value="lend_out_topup">Lend Out Top-ups</option>
+                <option value="lend_in_topup">Lend In Top-ups</option>
                 <option value="repayment_received">Repayments Received</option>
                 <option value="repayment_made">Repayments Made</option>
                 <option value="internal_transfer">Transfers Only</option>
@@ -297,6 +317,11 @@ const MobileTransactions: React.FC = () => {
                       {badge.label}
                     </span>
                     <div className="flex items-center gap-3">
+                      {(t.type === 'lend_out' || t.type === 'lend_in') && (
+                        <button onClick={() => handleTopup(t)} className="text-gray-500 hover:text-amber-400">
+                          <TrendingUp className="w-4 h-4" />
+                        </button>
+                      )}
                       {(t.type === 'lend_out' || t.type === 'lend_in') && (outstandingByLoanId[t.id] ?? 0) > 0.001 && (
                         <button onClick={() => handleRepay(t)} className="text-gray-500 hover:text-green-400">
                           <HandCoins className="w-4 h-4" />
