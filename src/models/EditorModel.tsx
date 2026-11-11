@@ -1,8 +1,10 @@
 // EditorModal.tsx
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Save, Calendar, X, BookOpen } from 'lucide-react';
 import supabase from '../lib/supabase';
+import RichEditor from '../components/journal/RichEditor';
+import { toHtml, sanitize, isEmptyContent } from '../lib/journalContent';
 import type { JournalEntry } from '../types/JournalTypes'; 
 
 
@@ -18,32 +20,27 @@ const today = formatDate(new Date());
 const EditorModal: React.FC<Props> = ({ entry, onClose, onSave }) => {
     const isNew = entry === null;
     
-    const [editorContent, setEditorContent] = useState(''); 
     const [editorTitle, setEditorTitle] = useState('');
     const [entryDate, setEntryDate] = useState(today);
 
+    // Legacy markdown entries are converted to HTML once, here; saving rewrites them as HTML.
+    const initialHtml = useMemo(() => (entry ? toHtml(entry.content) : ''), [entry]);
+    const [editorContent, setEditorContent] = useState(initialHtml);
+
     useEffect(() => {
-        if (!isNew && entry) {
-            setEditorContent(entry.content_markdown);
-            setEditorTitle(entry.title || '');
-            setEntryDate(entry.entry_date);
-        } else {
-            // Reset state for new entry creation if component is reused
-            setEditorContent('');
-            setEditorTitle('');
-            setEntryDate(today);
-        }
-    }, [entry, isNew]);
+        setEditorTitle(entry?.title || '');
+        setEntryDate(entry?.entry_date ?? today);
+    }, [entry]);
 
     const handleSave = async () => {
-        if (editorContent.trim().length === 0) {
+        if (isEmptyContent(editorContent)) {
             alert('Journal content cannot be empty.');
             return;
         }
 
         const entryData = {
             title: editorTitle.trim() || null,
-            content_html: editorContent, // Store Markdown in the HTML column
+            content_html: sanitize(editorContent),
             entry_date: entryDate,
         };
 
@@ -83,7 +80,7 @@ const EditorModal: React.FC<Props> = ({ entry, onClose, onSave }) => {
         // Modal Backdrop
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
             {/* Modal Body */}
-            <div className="bg-[#121212] text-gray-100 rounded-xl w-full max-w-3xl p-6 border border-[#303030] shadow-2xl shadow-black/50 max-h-[90vh] flex flex-col">
+            <div className="bg-[#121212] text-gray-100 rounded-xl w-full max-w-5xl p-6 border border-[#303030] shadow-2xl shadow-black/50 h-[92vh] flex flex-col">
                 
                 <div className="flex justify-between items-center mb-4 border-b border-[#303030] pb-3">
                     <h3 className="text-xl font-bold flex items-center gap-2 text-white">
@@ -116,15 +113,9 @@ const EditorModal: React.FC<Props> = ({ entry, onClose, onSave }) => {
                     />
                 </div>
                 
-                {/* Markdown Editor (Scrollable Area) */}
-                <textarea
-                    value={editorContent}
-                    onChange={(e) => setEditorContent(e.target.value)}
-                    placeholder="Use **double asterisks** for bold, # for headers, and * for lists."
-                    className="w-full bg-[#0A0A0A] border border-[#303030] focus:border-white rounded-lg p-4 mb-4 text-white placeholder-gray-500 transition font-mono resize-none flex-grow overflow-y-auto"
-                    rows={15}
-                />
-                
+                {/* Rich text editor (scrolls internally) */}
+                <RichEditor initialHtml={initialHtml} onChange={setEditorContent} />
+
                 {/* Save Button */}
                 <div className="flex justify-end pt-3 border-t border-[#303030]">
                     <button

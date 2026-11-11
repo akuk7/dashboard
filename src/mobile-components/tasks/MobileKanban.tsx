@@ -7,7 +7,8 @@ import type { TodoTask, TodoStatus, TodoCategory } from '../../types/TodoTypes'
 import TodoEditorModal from '../../models/TodoEditorModel'
 import MobileHeader from '../MobileHeader'
 import MobileTaskAnalytics from './MobileTaskAnalytics'
-import { formatDisplayIST, todayIST } from '../../lib/dateUtils'
+import { diffDaysIST, formatDisplayIST, todayIST } from '../../lib/dateUtils'
+import { useRecordCreated } from '../../lib/chat/useRecordCreated'
 
 const STATUS_COLORS: Record<TodoStatus, string> = {
   TODO: '#3B82F6',
@@ -30,6 +31,13 @@ const getLastWeekDate = () => {
 const isOverdue = (dateString: string | null, status: TodoStatus): boolean => {
   if (!dateString || status === 'DONE') return false
   return dateString < todayIST()
+}
+
+// Due today or tomorrow (IST) and not finished.
+const isDueSoon = (dateString: string | null, status: TodoStatus): boolean => {
+  if (!dateString || status === 'DONE') return false
+  const days = diffDaysIST(dateString, todayIST())
+  return days >= 0 && days <= 1
 }
 
 const MobileKanban: React.FC = () => {
@@ -83,6 +91,8 @@ const MobileKanban: React.FC = () => {
     loadTasks()
     loadCategories()
   }, [loadTasks, loadCategories])
+
+  useRecordCreated(['todo'], loadTasks)
 
   const onDragEnd = async (result: DropResult) => {
     const { destination, source, draggableId } = result
@@ -210,6 +220,8 @@ const MobileKanban: React.FC = () => {
                                     className={`text-xs mt-1 flex items-center gap-1 ${
                                       isOverdue(task.expected_complete_at, task.status)
                                         ? 'text-red-500'
+                                        : isDueSoon(task.expected_complete_at, task.status)
+                                        ? 'text-orange-500 font-bold'
                                         : 'text-gray-500'
                                     }`}
                                   >

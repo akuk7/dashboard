@@ -4,6 +4,7 @@ import supabase from '../../lib/supabase'
 import type { Habit } from '../../types/habit'
 import AddHabit from '../../components/AddHabit'
 import MobileHeader from '../MobileHeader'
+import { useRecordCreated } from '../../lib/chat/useRecordCreated'
 import { addDaysIST, dayOfWeekIST, datesEndingTodayIST, todayIST, toISTDateString, weekdayLetterIST } from '../../lib/dateUtils'
 
 type PeriodKeys = 'week' | 'month' | 'year'
@@ -22,6 +23,7 @@ const MobileHabits: React.FC = () => {
   const [records, setRecords] = useState<Record<string, Record<string, boolean>>>({})
   const [modalState, setModalState] = useState<ModalState>({ mode: 'closed' })
   const [view, setView] = useState<'list' | 'graph'>('list')
+  const [refreshToken, setRefreshToken] = useState(0)
 
   const trackerDates = useMemo(() => datesEndingTodayIST(TRACKER_DAYS).reverse(), [])
 
@@ -50,7 +52,9 @@ const MobileHabits: React.FC = () => {
       setRecords(map)
     }
     loadRecords()
-  }, [period, trackerDates])
+  }, [period, trackerDates, refreshToken])
+
+  useRecordCreated(['habit_log'], () => setRefreshToken(t => t + 1))
 
   const statPerHabit = useMemo(() => {
     const today = todayIST()

@@ -9,6 +9,8 @@ import TodoEditorModal from "../models/TodoEditorModel";
 import TodoCategoryModal from "../models/TodoCategoryModel";
 import WeeklyTaskDistribution from "../models/WeeklyTaskDistribution";
 import { diffDaysIST, formatDisplayIST, todayIST } from "../lib/dateUtils";
+import { useRecordCreated } from "../lib/chat/useRecordCreated";
+import { useGoogleCalendar, startGoogleCalendarConnect } from "../lib/googleCalendar";
 
 // Helper to get date strings for last 7 days (for DONE filtering)
 const getLastWeekDate = () => {
@@ -29,6 +31,12 @@ const TodoKanban: React.FC = () => {
   const [categories, setCategories] = useState<TodoCategory[]>([]);
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [showAddCategory, setShowAddCategory] = useState(false);
+  const gcal = useGoogleCalendar();
+  const refreshGcal = gcal.refresh;
+  useEffect(() => {
+    window.addEventListener('gcal:connected', refreshGcal);
+    return () => window.removeEventListener('gcal:connected', refreshGcal);
+  }, [refreshGcal]);
   const [columns, setColumns] = useState<
     Record<TodoStatus, { id: TodoStatus; title: string; taskIds: string[] }>
   >({
@@ -101,6 +109,8 @@ const TodoKanban: React.FC = () => {
     loadTasks();
     loadCategories();
   }, [loadTasks, loadCategories]);
+
+  useRecordCreated(['todo'], () => { loadTasks(); bumpRefresh(); });
 
   const handleCreateCategory = async (name: string, color: string) => {
     const { data, error } = await supabase
@@ -216,11 +226,11 @@ const TodoKanban: React.FC = () => {
     // 1. Determine priority states
     const overdue = isOverdue(task.expected_complete_at, task.status);
 
-    // Check if task is DUE SOON: Due today, tomorrow, or the day after (3 days total), in IST.
+    // Check if task is DUE SOON: due today or tomorrow, in IST.
     let isDueSoon = false;
     if (task.status !== "DONE" && task.expected_complete_at) {
       const daysUntilDue = diffDaysIST(task.expected_complete_at, todayIST());
-      if (daysUntilDue >= 0 && daysUntilDue <= 3) {
+      if (daysUntilDue >= 0 && daysUntilDue <= 1) {
         isDueSoon = true;
       }
     }
@@ -234,8 +244,8 @@ const TodoKanban: React.FC = () => {
       textColor = "text-red-500 font-bold";
       icon = <AlertTriangle className="w-3 h-3" />;
     } else if (isDueSoon) {
-      // Due in 3 days: Orange
-      textColor = "text-yellow-500 font-bold";
+      // Due today or tomorrow: Orange
+      textColor = "text-orange-500 font-bold";
     } else {
       // Completed tasks (DONE) and non-urgent active tasks: Default White/Gray
       textColor = "text-white";
@@ -302,6 +312,14 @@ const TodoKanban: React.FC = () => {
             <option value="all">All Categories</option>
             {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
+          {gcal.connected !== null && (
+            <button
+              onClick={() => (gcal.connected ? window.confirm('Stop syncing tasks to Google Calendar?') && gcal.disconnect() : startGoogleCalendarConnect().catch((e) => alert(e.message)))}
+              className="px-3 py-1.5 rounded-lg bg-[#121212] text-gray-300 hover:bg-[#303030] transition border border-[#303030] text-sm"
+            >
+              {gcal.connected ? 'Calendar: synced ✓' : 'Connect Google Calendar'}
+            </button>
+          )}
           <button
             onClick={() => setShowAddCategory(true)}
             className="px-3 py-1.5 rounded-lg bg-[#121212] text-gray-300 hover:bg-[#303030] transition border border-[#303030] text-sm"

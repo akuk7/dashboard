@@ -4,6 +4,7 @@ import { Chart as ChartJS, ArcElement, Tooltip, Legend, Title } from 'chart.js'
 import type { TooltipItem } from 'chart.js'
 import type { Transaction, TransactionAccount, TransactionCategory } from '../types/transaction'
 import { getLoansWithOutstanding } from '../lib/loans'
+import { netSpendEffect } from '../lib/linkedTransactions'
 import { startOfMonthIST, todayIST } from '../lib/dateUtils'
 
 ChartJS.register(ArcElement, Tooltip, Legend, Title)
@@ -59,7 +60,7 @@ const TransactionDashboard: React.FC<Props> = ({ transactions, accounts, categor
     accounts.forEach(a => { map[a.id] = a.opening_balance })
     transactionsAsOf.forEach(t => {
       if (!t.is_temporary) return
-      if (t.type === 'credit' || t.type === 'lend_in' || t.type === 'lend_in_topup' || t.type === 'repayment_received') map[t.account_id] = (map[t.account_id] ?? 0) + t.amount
+      if (t.type === 'credit' || t.type === 'split_credit' || t.type === 'lend_in' || t.type === 'lend_in_topup' || t.type === 'repayment_received') map[t.account_id] = (map[t.account_id] ?? 0) + t.amount
       else if (t.type === 'debit' || t.type === 'lend_out' || t.type === 'lend_out_topup' || t.type === 'repayment_made') map[t.account_id] = (map[t.account_id] ?? 0) - t.amount
       else if (t.type === 'internal_transfer') {
         map[t.account_id] = (map[t.account_id] ?? 0) - t.amount
@@ -107,7 +108,7 @@ const TransactionDashboard: React.FC<Props> = ({ transactions, accounts, categor
       if (t.transaction_date < summaryStartDate) return
       if (summaryEndDate && t.transaction_date > summaryEndDate) return
       if (t.type === 'credit') income += t.amount
-      else if (t.type === 'debit') expense += t.amount
+      else expense += netSpendEffect(t) // debit adds, split_credit reduces
     })
     return { income, expense, net: income - expense }
   }, [transactions, summaryStartDate, summaryEndDate])
@@ -116,12 +117,12 @@ const TransactionDashboard: React.FC<Props> = ({ transactions, accounts, categor
     const totals: Record<string, number> = {}
     transactions
       .filter(t =>
-        (t.type === 'debit' || (t.type === 'credit' && t.category_id)) &&
+        netSpendEffect(t) !== 0 &&
         t.transaction_date >= summaryStartDate && (!summaryEndDate || t.transaction_date <= summaryEndDate)
       )
       .forEach(t => {
         const key = t.category_id ?? 'uncategorized'
-        totals[key] = (totals[key] ?? 0) + (t.type === 'credit' ? -t.amount : t.amount)
+        totals[key] = (totals[key] ?? 0) + netSpendEffect(t)
       })
 
     const entries = Object.entries(totals).filter(([, amount]) => amount > 0)

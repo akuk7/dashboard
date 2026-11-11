@@ -1,13 +1,17 @@
 import { useEffect, useMemo, useState } from 'react'
-import { PlusCircle, List, BarChart3, SlidersHorizontal, Edit, Trash2, HandCoins, TrendingUp, ArrowLeftRight, PiggyBank, Search } from 'lucide-react'
+import { PlusCircle, List, BarChart3, SlidersHorizontal, Edit, Trash2, HandCoins, TrendingUp, ArrowLeftRight, PiggyBank, Search, Link2, Split, Users } from 'lucide-react'
 import supabase from '../../lib/supabase'
 import type { Transaction, TransactionAccount, TransactionCategory, TransactionType } from '../../types/transaction'
 import { getLoansWithOutstanding } from '../../lib/loans'
+import { adjustLinkedCount } from '../../lib/linkedTransactions'
+import LinkedTransactionsModel from '../../models/LinkedTransactionsModel'
+import TransactionGroups from '../../components/TransactionGroups'
 import AddTransaction from '../../components/AddTransaction'
 import MobileHeader from '../MobileHeader'
 import MobileTransactionAnalytics from './MobileTransactionAnalytics'
 import MobileBudget from './MobileBudget'
 import { formatDisplayIST, startOfMonthIST, todayIST } from '../../lib/dateUtils'
+import { useRecordCreated } from '../../lib/chat/useRecordCreated'
 
 type EditorState =
   | { mode: 'closed' }
@@ -26,6 +30,7 @@ const LEND_RELATED_TYPES = new Set<TransactionType>([
 const typeBadge = (type: TransactionType) => {
   if (type === 'credit') return { label: 'Credit', color: 'text-green-400 border-green-400/30 bg-green-400/10' }
   if (type === 'debit') return { label: 'Debit', color: 'text-red-400 border-red-400/30 bg-red-400/10' }
+  if (type === 'split_credit') return { label: 'Split', color: 'text-emerald-400 border-emerald-400/30 bg-emerald-400/10' }
   if (type === 'lend_out') return { label: 'Lent Out', color: 'text-amber-400 border-amber-400/30 bg-amber-400/10' }
   if (type === 'lend_in') return { label: 'Lent In', color: 'text-cyan-400 border-cyan-400/30 bg-cyan-400/10' }
   if (type === 'lend_out_topup') return { label: 'Lend Out (Top-up)', color: 'text-amber-400 border-amber-400/30 bg-amber-400/10' }
@@ -41,6 +46,7 @@ const AMOUNT_SIGN: Partial<Record<TransactionType, '-' | '+'>> = {
   lend_out_topup: '-',
   repayment_made: '-',
   credit: '+',
+  split_credit: '+',
   lend_in: '+',
   lend_in_topup: '+',
   repayment_received: '+',
@@ -58,9 +64,10 @@ const MobileTransactions: React.FC = () => {
   const [accounts, setAccounts] = useState<TransactionAccount[]>([])
   const [categories, setCategories] = useState<TransactionCategory[]>([])
   const [transactions, setTransactions] = useState<Transaction[]>([])
-  const [view, setView] = useState<'list' | 'graph' | 'budget'>('list')
+  const [view, setView] = useState<'list' | 'graph' | 'budget' | 'groups'>('list')
   const [showFilters, setShowFilters] = useState(false)
   const [editorState, setEditorState] = useState<EditorState>({ mode: 'closed' })
+  const [linkedParentId, setLinkedParentId] = useState<string | null>(null)
 
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('non_transfer')
   const [accountFilter, setAccountFilter] = useState('all')
@@ -86,6 +93,8 @@ const MobileTransactions: React.FC = () => {
   useEffect(() => {
     loadData()
   }, [])
+
+  useRecordCreated(['transaction'], loadData)
 
   const accountsById = useMemo(() => {
     const map: Record<string, string> = {}
@@ -135,20 +144,38 @@ const MobileTransactions: React.FC = () => {
 
   const handleTransactionSaved = (t: Transaction) => {
     setTransactions((prev) => {
-      const exists = prev.some((x) => x.id === t.id)
-      const next = exists ? prev.map((x) => (x.id === t.id ? t : x)) : [t, ...prev]
-      return sortTransactions(next)
+      const previous = prev.find((x) => x.id === t.id)
+      const saved = previous ? { ...t, linked_count: previous.linked_count } : t
+      const next = previous ? prev.map((x) => (x.id === t.id ? saved : x)) : [saved, ...prev]
+      return sortTransactions(adjustLinkedCount(next, previous?.related_transaction_id, t.related_transaction_id))
     })
     setEditorState({ mode: 'closed' })
   }
 
   const handleDelete = async (id: string) => {
+    const target = transactions.find((t) => t.id === id)
+    if (target && target.linked_count > 0) {
+      alert('This transaction has linked payments (repayments, top-ups or splits). Delete those first.')
+      return
+    }
     const { error } = await supabase.from('transactions').delete().match({ id })
     if (error) {
       console.error('Error deleting transaction:', error)
       return
     }
-    setTransactions((prev) => prev.filter((t) => t.id !== id))
+    setTransactions((prev) => adjustLinkedCount(prev.filter((t) => t.id !== id), target?.related_transaction_id, null))
+  }
+
+  const handleSplit = (debit: Transaction) => {
+    setEditorState({
+      mode: 'create',
+      prefill: {
+        type: 'split_credit',
+        account_id: debit.account_id,
+        description: `Split: ${debit.description}`,
+        related_transaction_id: debit.id,
+      },
+    })
   }
 
   const handleRepay = (loan: Transaction) => {
@@ -163,7 +190,7 @@ const MobileTransactions: React.FC = () => {
         account_id: loan.account_id,
         amount: Math.max(0, outstanding),
         description: `Repayment: ${loan.description}`,
-        related_loan_id: loan.id,
+        related_transaction_id: loan.id,
       },
     })
   }
@@ -177,7 +204,7 @@ const MobileTransactions: React.FC = () => {
         type: topupType,
         account_id: loan.account_id,
         description: `Top-up: ${loan.description}`,
-        related_loan_id: loan.id,
+        related_transaction_id: loan.id,
       },
     })
   }
@@ -206,6 +233,12 @@ const MobileTransactions: React.FC = () => {
             >
               <PiggyBank className="w-4 h-4" />
             </button>
+            <button
+              onClick={() => setView('groups')}
+              className={`p-1.5 rounded-md ${view === 'groups' ? 'bg-[#303030] text-white' : 'text-gray-500'}`}
+            >
+              <Users className="w-4 h-4" />
+            </button>
           </div>
         }
       />
@@ -218,6 +251,8 @@ const MobileTransactions: React.FC = () => {
         />
       ) : view === 'budget' ? (
         <MobileBudget transactions={transactions} categories={categories} />
+      ) : view === 'groups' ? (
+        <TransactionGroups variant="mobile" transactions={transactions} accounts={accounts} categories={categories} />
       ) : (
         <div className="px-4 pt-4">
           <div className="relative mb-3">
@@ -248,6 +283,7 @@ const MobileTransactions: React.FC = () => {
                 <option value="all">All Types</option>
                 <option value="debit">Debit Only</option>
                 <option value="credit">Credit Only</option>
+                <option value="split_credit">Split Credits</option>
                 <option value="lend_out">Lent Out Only</option>
                 <option value="lend_in">Lent In Only</option>
                 <option value="lend_out_topup">Lend Out Top-ups</option>
@@ -299,22 +335,57 @@ const MobileTransactions: React.FC = () => {
             {filtered.map((t) => {
               const badge = typeBadge(t.type)
               return (
-                <div key={t.id} className="p-3 bg-[#121212] rounded-lg border border-[#303030]">
+                <div
+                  key={t.id}
+                  className={`p-3 bg-[#121212] rounded-lg border border-[#303030] ${t.linked_count > 0 || t.related_transaction_id ? 'cursor-pointer' : ''}`}
+                  onClick={() => {
+                    const target = t.linked_count > 0 ? t.id : t.related_transaction_id
+                    if (target) setLinkedParentId(target)
+                  }}
+                >
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0 flex items-center gap-2">
                       {t.type === 'internal_transfer' && (
                         <ArrowLeftRight className="w-4 h-4 text-blue-400 flex-shrink-0" />
                       )}
                       <p className="text-sm font-semibold text-white truncate">{t.description}</p>
+                      {t.linked_count > 0 && (
+                        <button
+                          onClick={() => setLinkedParentId(t.id)}
+                          className="inline-flex items-center gap-1 text-[10px] font-bold text-gray-300 border border-[#303030] rounded-full px-1.5 py-0.5 shrink-0"
+                        >
+                          <Link2 className="w-3 h-3" /> {t.linked_count}
+                        </button>
+                      )}
+                      {t.related_transaction_id && (
+                        <button
+                          onClick={() => setLinkedParentId(t.related_transaction_id as string)}
+                          className="inline-flex items-center gap-1 text-[10px] text-gray-500 shrink-0"
+                        >
+                          <Link2 className="w-3 h-3" /> linked
+                        </button>
+                      )}
                     </div>
-                    <span
-                      className={`text-sm font-bold flex-shrink-0 ${
-                        AMOUNT_SIGN[t.type] === '-' ? 'text-red-400' : 'text-green-400'
-                      }`}
-                    >
-                      {AMOUNT_SIGN[t.type] ?? ''}
-                      {t.amount.toFixed(2)}
-                    </span>
+                    {(t.type === 'lend_out' || t.type === 'lend_in') && outstandingByLoanId[t.id] !== undefined ? (
+                      <span
+                        className={`text-right shrink-0 ${AMOUNT_SIGN[t.type] === '-' ? 'text-red-400' : 'text-green-400'}`}
+                      >
+                        <span className="block text-lg font-bold leading-tight">
+                          {AMOUNT_SIGN[t.type] ?? ''}
+                          {outstandingByLoanId[t.id].toFixed(2)}
+                        </span>
+                        <span className="block text-[10px] uppercase tracking-wider text-gray-500">outstanding</span>
+                      </span>
+                    ) : (
+                      <span
+                        className={`text-sm font-bold shrink-0 ${
+                          AMOUNT_SIGN[t.type] === '-' ? 'text-red-400' : 'text-green-400'
+                        }`}
+                      >
+                        {AMOUNT_SIGN[t.type] ?? ''}
+                        {t.amount.toFixed(2)}
+                      </span>
+                    )}
                   </div>
                   <p className="text-xs text-gray-500 mt-1">
                     {formatDisplayIST(t.transaction_date)} &middot; {accountsById[t.account_id] ?? 'Unknown'}
@@ -324,14 +395,19 @@ const MobileTransactions: React.FC = () => {
                     {t.category_id ? ` · ${categoriesById[t.category_id] ?? ''}` : ''}
                     {t.is_temporary && (t.type === 'lend_out' || t.type === 'lend_in') ? ' · Temporary' : ''}
                     {(t.type === 'lend_out' || t.type === 'lend_in') && outstandingByLoanId[t.id] !== undefined
-                      ? ` · ${outstandingByLoanId[t.id].toFixed(2)} outstanding`
+                      ? ` · ${t.amount.toFixed(2)} original`
                       : ''}
                   </p>
                   <div className="flex items-center justify-between mt-2">
                     <span className={`text-xs font-medium px-2 py-0.5 rounded-full border ${badge.color}`}>
                       {badge.label}
                     </span>
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
+                      {t.type === 'debit' && (
+                        <button onClick={() => handleSplit(t)} className="text-gray-500 hover:text-emerald-400">
+                          <Split className="w-4 h-4" />
+                        </button>
+                      )}
                       {(t.type === 'lend_out' || t.type === 'lend_in') && (
                         <button onClick={() => handleTopup(t)} className="text-gray-500 hover:text-amber-400">
                           <TrendingUp className="w-4 h-4" />
@@ -359,6 +435,10 @@ const MobileTransactions: React.FC = () => {
             {filtered.length === 0 && <p className="text-gray-500 text-center mt-10">No transactions match these filters.</p>}
           </div>
         </div>
+      )}
+
+      {linkedParentId && (
+        <LinkedTransactionsModel parentId={linkedParentId} accounts={accounts} onClose={() => setLinkedParentId(null)} />
       )}
 
       <button

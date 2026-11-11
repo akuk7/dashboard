@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import {  Edit, Trash2, Calendar, BookOpen, Search, PlusCircle,  Eye } from 'lucide-react';
 import supabase from '../lib/supabase';
 import { formatDisplayIST } from '../lib/dateUtils';
+import { toPlainText } from '../lib/journalContent';
 
 
 
@@ -40,8 +41,7 @@ const fetchEntries = async (): Promise<JournalEntry[]> => {
     const entries = rawData.map((row: RawJournalRow) => ({
         id: row.id,
         title: row.title,
-        // Perform the required aliasing/renaming here
-        content_markdown: row.content_html, 
+        content: row.content_html,
         entry_date: row.entry_date,
         created_at: row.created_at,
     }));
@@ -104,7 +104,7 @@ const DigitalJournal: React.FC = () => {
             const lowerCaseSearch = searchTerm.toLowerCase();
             list = list.filter(entry =>
                 (entry.title?.toLowerCase().includes(lowerCaseSearch) || 
-                 entry.content_markdown.toLowerCase().includes(lowerCaseSearch))
+                 toPlainText(entry.content).toLowerCase().includes(lowerCaseSearch))
             );
         }
 

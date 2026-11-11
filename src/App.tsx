@@ -4,10 +4,12 @@ import { type Session } from '@supabase/supabase-js';
 import { supabase } from './lib/supabase'; // Your Supabase client setup
 import AuthForm from './AuthForm';   // <--- Import the new Auth page
 import { useIsMobile } from './hooks/useIsMobile';
+import { completeGoogleCalendarConnect } from './lib/googleCalendar';
 import './App.css'; // Assuming you have some global styles
 
 const Dashboard = lazy(() => import('./Dashboard'));
 const MobileApp = lazy(() => import('./mobile-components/MobileApp'));
+const ChatWidget = lazy(() => import('./components/chat/ChatWidget'));
 
 function App() {
   const [session, setSession] = useState<Session | null>(null);
@@ -33,6 +35,14 @@ function App() {
     return () => subscription.unsubscribe();
   }, []);
 
+  // Finish the Google Calendar OAuth round-trip if we just came back from Google's consent screen.
+  useEffect(() => {
+    if (!session) return;
+    completeGoogleCalendarConnect()
+      .then((done) => { if (done) window.dispatchEvent(new Event('gcal:connected')); })
+      .catch((e) => alert(`Google Calendar connection failed: ${e.message}`));
+  }, [session]);
+
   // Show a simple loading state while checking the session
   if (loading) {
     return (
@@ -48,12 +58,17 @@ function App() {
           {!session ? (
             // IF NO SESSION: Show the authentication form
             <AuthForm />
-          ) : isMobile ? (
-            // IF LOGGED IN ON A PHONE: Show the mobile app shell
-            <MobileApp />
           ) : (
-            // IF LOGGED IN ON DESKTOP: Show the normal content
-            <Dashboard />
+            <>
+              {isMobile ? (
+                // IF LOGGED IN ON A PHONE: Show the mobile app shell
+                <MobileApp />
+              ) : (
+                // IF LOGGED IN ON DESKTOP: Show the normal content
+                <Dashboard />
+              )}
+              <ChatWidget />
+            </>
           )}
         </Suspense>
       </BrowserRouter>

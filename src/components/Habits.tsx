@@ -3,6 +3,7 @@ import HabitTracker from "./HabitTracker";
 import AddHabit from "./AddHabit";
 import { PlusCircle } from "lucide-react";
 import type { Habit } from "../types/habit";
+import { useRecordCreated } from "../lib/chat/useRecordCreated";
 type PeriodKeys = 'week' | 'month' | 'year';
 
 type ModalState = { mode: 'closed' } | { mode: 'create' } | { mode: 'edit'; habit: Habit }
@@ -12,6 +13,7 @@ const Habits:React.FC = () => {
         const [modalState, setModalState] = useState<ModalState>({ mode: 'closed' })
         const [refreshToken, setRefreshToken] = useState(0)
         const bumpRefresh = () => setRefreshToken(t => t + 1)
+        useRecordCreated(['habit_log'], bumpRefresh)
   return (
     <div className=" w-[85vw]   mt-10 gap-6" >
         <div className="flex justify-between items-center mb-2 border-b border-[#303030] pb-2">

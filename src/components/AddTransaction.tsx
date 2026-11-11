@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react'
 import { X, PlusCircle, Save } from 'lucide-react'
 import supabase from '../lib/supabase'
-import type { Transaction, TransactionAccount, TransactionCategory, TransactionType } from '../types/transaction'
+import type { Transaction, TransactionAccount, TransactionCategory, TransactionGroup, TransactionType } from '../types/transaction'
 import type { LoanInfo } from '../lib/loans'
-import { todayIST } from '../lib/dateUtils'
+import { addDaysIST, formatDisplayIST, todayIST } from '../lib/dateUtils'
 
 type Props = {
   transaction: Transaction | null // null for new, populated for editing
@@ -28,7 +28,14 @@ const AddTransaction: React.FC<Props> = ({ transaction, prefill, accounts, categ
   const [transactionDate, setTransactionDate] = useState(todayIST())
   const [isBigLoan, setIsBigLoan] = useState(false)
   const [relatedLoanId, setRelatedLoanId] = useState('')
+  const [groupId, setGroupId] = useState('')
+  const [groups, setGroups] = useState<TransactionGroup[]>([])
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    supabase.from('transaction_groups').select('*').order('created_at', { ascending: false })
+      .then(({ data }) => setGroups((data as TransactionGroup[]) ?? []))
+  }, [])
 
   useEffect(() => {
     if (transaction) {
@@ -40,8 +47,10 @@ const AddTransaction: React.FC<Props> = ({ transaction, prefill, accounts, categ
       setCategoryId(transaction.category_id ?? '')
       setTransactionDate(transaction.transaction_date)
       setIsBigLoan(!transaction.is_temporary)
-      setRelatedLoanId(transaction.related_loan_id ?? '')
+      setRelatedLoanId(transaction.related_transaction_id ?? '')
+      setGroupId(transaction.group_id ?? '')
     } else {
+      setGroupId(prefill?.group_id ?? '')
       setDescription(prefill?.description ?? '')
       setAmount(prefill?.amount !== undefined ? String(prefill.amount) : '')
       setType(prefill?.type ?? 'debit')
@@ -50,7 +59,7 @@ const AddTransaction: React.FC<Props> = ({ transaction, prefill, accounts, categ
       setCategoryId('')
       setTransactionDate(todayIST())
       setIsBigLoan(false)
-      setRelatedLoanId(prefill?.related_loan_id ?? '')
+      setRelatedLoanId(prefill?.related_transaction_id ?? '')
     }
   }, [transaction, prefill, accounts])
 
@@ -58,6 +67,9 @@ const AddTransaction: React.FC<Props> = ({ transaction, prefill, accounts, categ
   const isLend = type === 'lend_out' || type === 'lend_in'
   const isRepayment = type === 'repayment_received' || type === 'repayment_made'
   const isTopup = type === 'lend_out_topup' || type === 'lend_in_topup'
+  const isSplit = type === 'split_credit'
+  // Groups apply to debit/credit/split_credit only. A split always follows the debit it settles.
+  const canHaveGroup = type === 'debit' || type === 'credit' || isSplit
   const linkedLoanType: 'lend_out' | 'lend_in' | null =
     type === 'repayment_received' || type === 'lend_out_topup' ? 'lend_out'
     : type === 'repayment_made' || type === 'lend_in_topup' ? 'lend_in'
@@ -69,9 +81,50 @@ const AddTransaction: React.FC<Props> = ({ transaction, prefill, accounts, categ
     setType(nextType)
     if (nextType !== 'internal_transfer') setToAccountId('')
     if (nextType !== 'lend_out' && nextType !== 'lend_in') setIsBigLoan(false)
-    if (nextType !== 'repayment_received' && nextType !== 'repayment_made' && nextType !== 'lend_out_topup' && nextType !== 'lend_in_topup') {
-      setRelatedLoanId('')
+    // Switching between loan-linked and split-linked types invalidates the picked parent.
+    const nextIsLoanLink = nextType === 'repayment_received' || nextType === 'repayment_made' || nextType === 'lend_out_topup' || nextType === 'lend_in_topup'
+    const nextIsSplit = nextType === 'split_credit'
+    if (!nextIsLoanLink && !nextIsSplit) setRelatedLoanId('')
+    else if (nextIsSplit !== isSplit) setRelatedLoanId('')
+  }
+
+  // Split credits point at a debit. Load recent debits server-side (history can be huge, so never
+  // filter the full list) plus the currently linked one if it's older than the window.
+  const [splitSearch, setSplitSearch] = useState('')
+  const [debitOptions, setDebitOptions] = useState<Transaction[]>([])
+  useEffect(() => {
+    if (!isSplit) return
+    let cancelled = false
+    const run = async () => {
+      let query = supabase.from('transactions').select('*').eq('type', 'debit')
+      const term = splitSearch.trim()
+      if (term) query = query.ilike('description', `%${term}%`)
+      else query = query.gte('transaction_date', addDaysIST(todayIST(), -60))
+      const { data } = await query
+        .order('transaction_date', { ascending: false })
+        .order('created_at', { ascending: false })
+        .limit(50)
+      let list = (data as Transaction[]) ?? []
+      if (relatedLoanId && !list.some(d => d.id === relatedLoanId)) {
+        const { data: linked } = await supabase.from('transactions').select('*').eq('id', relatedLoanId).single()
+        if (linked) list = [linked as Transaction, ...list]
+      }
+      if (!cancelled) setDebitOptions(list)
     }
+    void run()
+    return () => { cancelled = true }
+    // relatedLoanId is intentionally only read for the "keep the linked one visible" case.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSplit, splitSearch, transaction, prefill])
+  const selectedDebit = debitOptions.find(d => d.id === relatedLoanId)
+
+  const handleDebitPicked = (debitId: string) => {
+    setRelatedLoanId(debitId)
+    const debit = debitOptions.find(d => d.id === debitId)
+    if (!debit) return
+    setAccountId(debit.account_id)
+    setGroupId(debit.group_id ?? '')
+    if (!description.trim()) setDescription(`Split: ${debit.description}`)
   }
 
   const handleLoanPicked = (loanId: string) => {
@@ -96,6 +149,10 @@ const AddTransaction: React.FC<Props> = ({ transaction, prefill, accounts, categ
       setError(isRepayment ? 'Pick which loan this repayment is for.' : 'Pick which loan this top-up is for.')
       return
     }
+    if (isSplit && !selectedDebit) {
+      setError('Pick which expense this split is for.')
+      return
+    }
 
     const payload = {
       description: description.trim(),
@@ -103,10 +160,13 @@ const AddTransaction: React.FC<Props> = ({ transaction, prefill, accounts, categ
       type,
       account_id: accountId,
       to_account_id: isTransfer ? toAccountId : null,
-      category_id: (isTransfer || isRepayment || isTopup) ? null : (categoryId || null),
+      // A split always lands in the category of the expense it settles, so spend netting is exact.
+      category_id: isSplit ? (selectedDebit?.category_id ?? null)
+        : (isTransfer || isRepayment || isTopup) ? null : (categoryId || null),
       transaction_date: transactionDate,
       is_temporary: isLend ? !isBigLoan : isTopup ? (selectedLinkedLoan?.transaction.is_temporary ?? true) : true,
-      related_loan_id: (isRepayment || isTopup) ? relatedLoanId : null,
+      related_transaction_id: (isRepayment || isTopup || isSplit) ? relatedLoanId : null,
+      group_id: isSplit ? (selectedDebit?.group_id ?? null) : canHaveGroup ? (groupId || null) : null,
     }
 
     const { data, error: saveError } = isEditing
@@ -165,6 +225,7 @@ const AddTransaction: React.FC<Props> = ({ transaction, prefill, accounts, categ
             >
               <option value="debit">Debit</option>
               <option value="credit">Credit</option>
+              <option value="split_credit">Split Credit</option>
               <option value="lend_out">Lend Out</option>
               <option value="lend_in">Lend In</option>
               <option value="lend_out_topup">Lend Out (Top-up)</option>
@@ -203,6 +264,23 @@ const AddTransaction: React.FC<Props> = ({ transaction, prefill, accounts, categ
                 {accounts.filter(a => a.id !== accountId).map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
               </select>
             </div>
+          ) : isSplit ? (
+            <div>
+              <label className="block mb-2 text-sm font-medium text-gray-300">Which Expense?</label>
+              <select
+                value={relatedLoanId}
+                onChange={(e) => handleDebitPicked(e.target.value)}
+                className="w-full bg-[#0A0A0A] border border-[#303030] focus:border-white rounded-lg px-4 py-3 text-white outline-none"
+              >
+                <option value="" disabled>Select expense</option>
+                {debitOptions.map(d => (
+                  <option key={d.id} value={d.id}>
+                    {d.description} · {formatDisplayIST(d.transaction_date)} · {d.amount.toFixed(2)}
+                    {d.linked_count > 0 ? ` · ${d.linked_count} split${d.linked_count === 1 ? '' : 's'}` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
           ) : (isRepayment || isTopup) ? (
             <div>
               <label className="block mb-2 text-sm font-medium text-gray-300">Which Loan?</label>
@@ -236,6 +314,25 @@ const AddTransaction: React.FC<Props> = ({ transaction, prefill, accounts, categ
           )}
         </div>
 
+        {canHaveGroup && !isSplit && (
+          <div className="mb-4">
+            <label className="block mb-2 text-sm font-medium text-gray-300">Group (optional)</label>
+            <select
+              value={groupId}
+              onChange={(e) => setGroupId(e.target.value)}
+              className="w-full bg-[#0A0A0A] border border-[#303030] focus:border-white rounded-lg px-4 py-3 text-white outline-none"
+            >
+              <option value="">No group</option>
+              {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+            </select>
+          </div>
+        )}
+        {isSplit && selectedDebit?.group_id && (
+          <p className="text-xs text-gray-500 mb-4">
+            Added to the group &quot;{groups.find(g => g.id === selectedDebit.group_id)?.name ?? 'group'}&quot; of that expense.
+          </p>
+        )}
+
         <div className="flex justify-between items-center mb-4">
           <label className="text-sm font-medium text-gray-300">Date</label>
           <input
@@ -257,6 +354,23 @@ const AddTransaction: React.FC<Props> = ({ transaction, prefill, accounts, categ
             This is a big loan / arrears, not a small personal {type === 'lend_out' ? 'lend' : 'borrow'}
             (won&apos;t affect account balance - only counted in Lent and Net Worth)
           </label>
+        )}
+
+        {isSplit && (
+          <div className="mb-4">
+            <input
+              value={splitSearch}
+              onChange={(e) => setSplitSearch(e.target.value)}
+              placeholder="Search older expenses by description (default: last 60 days)"
+              className="w-full bg-[#0A0A0A] border border-[#303030] focus:border-white rounded-lg px-3 py-2 text-sm text-white outline-none"
+            />
+            <p className="text-xs text-gray-500 mt-2">
+              {selectedDebit
+                ? `Counts against the ${categories.find(c => c.id === selectedDebit.category_id)?.name ?? 'uncategorized'} spend of that expense. Not income.`
+                : 'Counts against the spend of the expense you pick. Not income.'}
+              {selectedDebit && Number(amount) > selectedDebit.amount ? ' This is more than the expense amount.' : ''}
+            </p>
+          </div>
         )}
 
         {isTopup && selectedLinkedLoan && (
