@@ -9,6 +9,7 @@ import './App.css'; // Assuming you have some global styles
 
 const Dashboard = lazy(() => import('./Dashboard'));
 const MobileApp = lazy(() => import('./mobile-components/MobileApp'));
+const ChatWidget = lazy(() => import('./components/chat/ChatWidget'));
 
 function App() {
   const [session, setSession] = useState<Session | null>(null);
@@ -57,12 +58,17 @@ function App() {
           {!session ? (
             // IF NO SESSION: Show the authentication form
             <AuthForm />
-          ) : isMobile ? (
-            // IF LOGGED IN ON A PHONE: Show the mobile app shell
-            <MobileApp />
           ) : (
-            // IF LOGGED IN ON DESKTOP: Show the normal content
-            <Dashboard />
+            <>
+              {isMobile ? (
+                // IF LOGGED IN ON A PHONE: Show the mobile app shell
+                <MobileApp />
+              ) : (
+                // IF LOGGED IN ON DESKTOP: Show the normal content
+                <Dashboard />
+              )}
+              <ChatWidget />
+            </>
           )}
         </Suspense>
       </BrowserRouter>

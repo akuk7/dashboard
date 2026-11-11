@@ -9,6 +9,7 @@ import TodoEditorModal from "../models/TodoEditorModel";
 import TodoCategoryModal from "../models/TodoCategoryModel";
 import WeeklyTaskDistribution from "../models/WeeklyTaskDistribution";
 import { diffDaysIST, formatDisplayIST, todayIST } from "../lib/dateUtils";
+import { useRecordCreated } from "../lib/chat/useRecordCreated";
 import { useGoogleCalendar, startGoogleCalendarConnect } from "../lib/googleCalendar";
 
 // Helper to get date strings for last 7 days (for DONE filtering)
@@ -108,6 +109,8 @@ const TodoKanban: React.FC = () => {
     loadTasks();
     loadCategories();
   }, [loadTasks, loadCategories]);
+
+  useRecordCreated(['todo'], () => { loadTasks(); bumpRefresh(); });
 
   const handleCreateCategory = async (name: string, color: string) => {
     const { data, error } = await supabase

@@ -8,6 +8,7 @@ import TodoEditorModal from '../../models/TodoEditorModel'
 import MobileHeader from '../MobileHeader'
 import MobileTaskAnalytics from './MobileTaskAnalytics'
 import { diffDaysIST, formatDisplayIST, todayIST } from '../../lib/dateUtils'
+import { useRecordCreated } from '../../lib/chat/useRecordCreated'
 
 const STATUS_COLORS: Record<TodoStatus, string> = {
   TODO: '#3B82F6',
@@ -90,6 +91,8 @@ const MobileKanban: React.FC = () => {
     loadTasks()
     loadCategories()
   }, [loadTasks, loadCategories])
+
+  useRecordCreated(['todo'], loadTasks)
 
   const onDragEnd = async (result: DropResult) => {
     const { destination, source, draggableId } = result
