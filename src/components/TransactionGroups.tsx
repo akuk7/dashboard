@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react'
-import { Users, PlusCircle, Edit, Trash2 } from 'lucide-react'
+import { Luggage, PlusCircle, Edit, Trash2 } from 'lucide-react'
 import supabase from '../lib/supabase'
 import type { Transaction, TransactionAccount, TransactionCategory, TransactionGroup, TransactionGroupStats } from '../types/transaction'
 import TransactionGroupModel from '../models/TransactionGroupModel'
@@ -75,7 +75,7 @@ const TransactionGroups: React.FC<Props> = ({ accounts, categories, transactions
     <div className={isMobile ? 'px-4 pt-4' : 'p-6 border border-[#303030] shadow-md rounded-xl text-gray-100 mt-6'}>
       <div className="flex justify-between items-center mb-4 border-b border-[#303030] pb-3">
         <h4 className="text-xl font-bold text-white flex items-center gap-2" id={isMobile ? undefined : 'groups'}>
-          <Users className="w-5 h-5 text-gray-400" /> Groups ({groups.length})
+          <Luggage className="w-5 h-5 text-gray-400" /> Groups ({groups.length})
         </h4>
         <button
           onClick={() => setForm({ mode: 'create' })}

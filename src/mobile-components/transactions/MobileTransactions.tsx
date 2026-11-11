@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { PlusCircle, List, BarChart3, SlidersHorizontal, Edit, Trash2, HandCoins, TrendingUp, ArrowLeftRight, PiggyBank, Search, Link2, Split, Users } from 'lucide-react'
+import { PlusCircle, List, BarChart3, SlidersHorizontal, Edit, Trash2, HandCoins, TrendingUp, ArrowLeftRight, PiggyBank, Search, Link2, Split, Luggage } from 'lucide-react'
 import supabase from '../../lib/supabase'
 import type { Transaction, TransactionAccount, TransactionCategory, TransactionType } from '../../types/transaction'
 import { getLoansWithOutstanding } from '../../lib/loans'
@@ -237,7 +237,7 @@ const MobileTransactions: React.FC = () => {
               onClick={() => setView('groups')}
               className={`p-1.5 rounded-md ${view === 'groups' ? 'bg-[#303030] text-white' : 'text-gray-500'}`}
             >
-              <Users className="w-4 h-4" />
+              <Luggage className="w-4 h-4" />
             </button>
           </div>
         }
@@ -250,7 +250,7 @@ const MobileTransactions: React.FC = () => {
           categories={categories}
         />
       ) : view === 'budget' ? (
-        <MobileBudget transactions={transactions} categories={categories} />
+        <MobileBudget transactions={transactions} categories={categories} accounts={accounts} />
       ) : view === 'groups' ? (
         <TransactionGroups variant="mobile" transactions={transactions} accounts={accounts} categories={categories} />
       ) : (

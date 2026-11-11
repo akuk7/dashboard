@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { PlusCircle, Wallet, LayoutDashboard, List, PiggyBank, Users } from 'lucide-react'
+import { PlusCircle, Wallet, LayoutDashboard, List, PiggyBank, Luggage } from 'lucide-react'
 import supabase from '../lib/supabase'
 import type { Transaction, TransactionAccount, TransactionCategory, TransactionType } from '../types/transaction'
 import { getLoansWithOutstanding } from '../lib/loans'
@@ -33,7 +33,7 @@ const SECTIONS: { id: Section; label: string; icon: typeof Wallet }[] = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'history', label: 'History', icon: List },
   { id: 'budget', label: 'Budget', icon: PiggyBank },
-  { id: 'groups', label: 'Groups', icon: Users },
+  { id: 'groups', label: 'Groups', icon: Luggage },
 ]
 
 const SECTION_STORAGE_KEY = 'transactions:section'
@@ -239,7 +239,7 @@ const Transactions: React.FC = () => {
           categories={categories}
         />
       )}
-      {section === 'budget' && <BudgetPanel transactions={transactions} categories={categories} />}
+      {section === 'budget' && <BudgetPanel transactions={transactions} categories={categories} accounts={accounts} />}
       {section === 'history' && (
         <TransactionList
           transactions={transactions}

@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { X, Users } from 'lucide-react'
+import { X, Luggage } from 'lucide-react'
 import type { TransactionGroup } from '../types/transaction'
 
 type Props = {
@@ -27,7 +27,7 @@ const TransactionGroupModel: React.FC<Props> = ({ group, onClose, onSave }) => {
       <div className="bg-[#121212] text-gray-100 rounded-xl w-full max-w-sm p-6 border border-[#303030] shadow-2xl">
         <div className="flex justify-between items-center mb-4">
           <h3 className="text-lg font-bold flex items-center gap-2 text-white">
-            <Users className="w-5 h-5 text-gray-400" /> {group ? 'Edit Group' : 'New Group'}
+            <Luggage className="w-5 h-5 text-gray-400" /> {group ? 'Edit Group' : 'New Group'}
           </h3>
           <button onClick={onClose} aria-label="Close" className="text-gray-400 hover:text-white"><X className="w-5 h-5" /></button>
         </div>

@@ -2,10 +2,11 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { ChevronLeft, ChevronRight, AlertTriangle } from 'lucide-react'
 import supabase from '../../lib/supabase'
 import type { Budget } from '../../types/budget'
-import type { Transaction, TransactionCategory } from '../../types/transaction'
-import { computeCategorySpend, budgetStatusColor, REPAYMENT_BUDGET_KEY } from '../../lib/budgets'
+import type { Transaction, TransactionAccount, TransactionCategory } from '../../types/transaction'
+import { computeCategorySpend, budgetStatusColor, transactionsForBudgetKey, REPAYMENT_BUDGET_KEY, LOAN_BUDGET_KEY, UNCATEGORIZED_BUDGET_KEY } from '../../lib/budgets'
 import { todayIST } from '../../lib/dateUtils'
 import BudgetEditorModal from '../../models/BudgetEditorModal'
+import BudgetCategoryTransactionsModel from '../../models/BudgetCategoryTransactionsModel'
 
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -14,7 +15,7 @@ const MONTH_NAMES = [
 
 const FLOOR_YEAR = 2026
 const FLOOR_MONTH = 8
-const UNCATEGORIZED_KEY = '__uncategorized__'
+const UNCATEGORIZED_KEY = UNCATEGORIZED_BUDGET_KEY
 
 const STATUS_BAR_COLOR: Record<'green' | 'yellow' | 'red', string> = {
   green: '#34d399',
@@ -25,9 +26,11 @@ const STATUS_BAR_COLOR: Record<'green' | 'yellow' | 'red', string> = {
 type Props = {
   categories: TransactionCategory[]
   transactions: Transaction[]
+  accounts: TransactionAccount[]
 }
 
-const MobileBudget: React.FC<Props> = ({ categories, transactions }) => {
+const MobileBudget: React.FC<Props> = ({ categories, transactions, accounts }) => {
+  const [detailKey, setDetailKey] = useState<string | null>(null)
   const today = todayIST()
   const [viewMonth, setViewMonth] = useState(Number(today.slice(5, 7)))
   const [viewYear, setViewYear] = useState(Number(today.slice(0, 4)))
@@ -56,6 +59,7 @@ const MobileBudget: React.FC<Props> = ({ categories, transactions }) => {
 
   const resolveName = (id: string): string => {
     if (id === REPAYMENT_BUDGET_KEY) return 'Repayment'
+    if (id === LOAN_BUDGET_KEY) return 'Loans'
     return categoriesById[id]?.name ?? 'Unknown'
   }
 
@@ -196,7 +200,7 @@ const MobileBudget: React.FC<Props> = ({ categories, transactions }) => {
                     onChange={() => toggleChecked(r.id)}
                     className="mt-1 shrink-0"
                   />
-                  <div className="flex-1 min-w-0">
+                  <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setDetailKey(r.id)}>
                     <div className="flex items-center justify-between mb-1 text-sm gap-2">
                       <span className="text-gray-300">{r.name}</span>
                       <div className="flex items-center gap-1.5 shrink-0">
@@ -231,7 +235,7 @@ const MobileBudget: React.FC<Props> = ({ categories, transactions }) => {
                   onChange={() => toggleChecked(UNCATEGORIZED_KEY)}
                   className="mt-1 shrink-0"
                 />
-                <div className="flex-1 min-w-0">
+                <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setDetailKey(UNCATEGORIZED_KEY)}>
                   <div className="flex items-center justify-between mb-1 text-sm">
                     <span className="text-gray-300">Uncategorized</span>
                     <span className="text-gray-400 text-xs">{spend.uncategorized.toFixed(2)}</span>
@@ -247,6 +251,15 @@ const MobileBudget: React.FC<Props> = ({ categories, transactions }) => {
             )}
           </div>
         </>
+      )}
+
+      {detailKey && (
+        <BudgetCategoryTransactionsModel
+          title={`${detailKey === UNCATEGORIZED_KEY ? 'Uncategorized' : resolveName(detailKey)} · ${MONTH_NAMES[viewMonth - 1]} ${viewYear}`}
+          rows={transactionsForBudgetKey(transactions, detailKey, viewMonth, viewYear)}
+          accounts={accounts}
+          onClose={() => setDetailKey(null)}
+        />
       )}
 
       {showEditor && (

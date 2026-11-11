@@ -3,7 +3,7 @@ import { X, Wallet, Save, Copy } from 'lucide-react'
 import supabase from '../lib/supabase'
 import type { Budget } from '../types/budget'
 import type { TransactionCategory } from '../types/transaction'
-import { REPAYMENT_BUDGET_KEY } from '../lib/budgets'
+import { REPAYMENT_BUDGET_KEY, LOAN_BUDGET_KEY } from '../lib/budgets'
 
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -127,6 +127,18 @@ const BudgetEditorModal: React.FC<Props> = ({ month, year, categories, budgets, 
                 step="0.01"
                 value={amounts[REPAYMENT_BUDGET_KEY] ?? ''}
                 onChange={(e) => updateAmount(REPAYMENT_BUDGET_KEY, e.target.value)}
+                placeholder="0.00"
+                className="w-32 bg-[#0A0A0A] border border-[#303030] focus:border-white rounded-lg px-3 py-2 text-white outline-none text-right"
+              />
+            </div>
+            <div className="flex items-center justify-between gap-3 mt-3">
+              <label className="text-sm text-gray-300 truncate">Loans <span className="text-xs text-gray-500">(money you lend out)</span></label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={amounts[LOAN_BUDGET_KEY] ?? ''}
+                onChange={(e) => updateAmount(LOAN_BUDGET_KEY, e.target.value)}
                 placeholder="0.00"
                 className="w-32 bg-[#0A0A0A] border border-[#303030] focus:border-white rounded-lg px-3 py-2 text-white outline-none text-right"
               />

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { X, Users } from 'lucide-react'
+import { X, Luggage } from 'lucide-react'
 import supabase from '../lib/supabase'
 import type { Transaction, TransactionAccount, TransactionCategory, TransactionGroup } from '../types/transaction'
 import { AMOUNT_SIGN, typeBadge } from '../lib/transactionDisplay'
@@ -53,7 +53,7 @@ const GroupTransactionsModel: React.FC<Props> = ({ group, accounts, categories, 
         <div className="flex justify-between items-start p-4 border-b border-[#303030] gap-3">
           <div className="min-w-0">
             <h3 className="text-lg font-bold flex items-center gap-2 text-white">
-              <Users className="w-5 h-5 text-gray-400 shrink-0" />
+              <Luggage className="w-5 h-5 text-gray-400 shrink-0" />
               <span className="truncate">{group.name}</span>
             </h3>
             {range && <p className="text-xs text-gray-500 mt-1">{range}</p>}
