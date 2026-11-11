@@ -3,8 +3,7 @@
 import React from 'react';
 import { Edit, X, Calendar } from 'lucide-react';
 import type { JournalEntry } from '../types/JournalTypes';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
+import { toHtml } from '../lib/journalContent';
 import { formatDisplayIST } from '../lib/dateUtils';
 
 interface Props {
@@ -18,7 +17,7 @@ const EntryViewerModal: React.FC<Props> = ({ entry, onClose, onEdit }) => {
         // Modal Backdrop
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 ">
             {/* Modal Body */}
-            <div className="bg-[#121212] text-gray-100 rounded-xl w-full max-w-3xl p-6 border border-[#303030] shadow-2xl shadow-black/50  min-h-[500px] max-h-[90vh] flex flex-col">
+            <div className="bg-[#121212] text-gray-100 rounded-xl w-full max-w-5xl p-6 border border-[#303030] shadow-2xl shadow-black/50  min-h-[500px] max-h-[92vh] flex flex-col">
                 
                 <div className="flex justify-between items-start mb-4 border-b border-[#303030] pb-3">
                     <div className="flex flex-col">
@@ -41,13 +40,11 @@ const EntryViewerModal: React.FC<Props> = ({ entry, onClose, onEdit }) => {
                     </div>
                 </div>
 
-                {/* Rendered Markdown Content */}
-                <div className="text-base text-gray-300 overflow-y-auto flex-grow prose prose-invert max-w-none">
-                    <ReactMarkdown 
-                        children={entry.content_markdown}
-                        remarkPlugins={[remarkGfm]}
-                    />
-                </div>
+                {/* Rendered (sanitized) HTML content */}
+                <div
+                    className="journal-content text-base text-gray-300 overflow-y-auto flex-grow"
+                    dangerouslySetInnerHTML={{ __html: toHtml(entry.content) }}
+                />
             </div>
         </div>
     );
