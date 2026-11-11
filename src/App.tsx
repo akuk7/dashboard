@@ -4,6 +4,7 @@ import { type Session } from '@supabase/supabase-js';
 import { supabase } from './lib/supabase'; // Your Supabase client setup
 import AuthForm from './AuthForm';   // <--- Import the new Auth page
 import { useIsMobile } from './hooks/useIsMobile';
+import { completeGoogleCalendarConnect } from './lib/googleCalendar';
 import './App.css'; // Assuming you have some global styles
 
 const Dashboard = lazy(() => import('./Dashboard'));
@@ -32,6 +33,14 @@ function App() {
     // Clean up the listener on unmount
     return () => subscription.unsubscribe();
   }, []);
+
+  // Finish the Google Calendar OAuth round-trip if we just came back from Google's consent screen.
+  useEffect(() => {
+    if (!session) return;
+    completeGoogleCalendarConnect()
+      .then((done) => { if (done) window.dispatchEvent(new Event('gcal:connected')); })
+      .catch((e) => alert(`Google Calendar connection failed: ${e.message}`));
+  }, [session]);
 
   // Show a simple loading state while checking the session
   if (loading) {
