@@ -1,8 +1,9 @@
 import React, { useMemo, useState } from 'react'
-import { Trash2, Edit, ArrowLeftRight, HandCoins, TrendingUp, PlusCircle, Search } from 'lucide-react'
+import { Trash2, Edit, ArrowLeftRight, HandCoins, TrendingUp, PlusCircle, Search, Link2, Split } from 'lucide-react'
 import type { Transaction, TransactionAccount, TransactionCategory, TransactionType } from '../types/transaction'
 import type { LoanInfo } from '../lib/loans'
 import { formatDisplayIST, startOfMonthIST, todayIST } from '../lib/dateUtils'
+import { AMOUNT_SIGN, typeBadge } from '../lib/transactionDisplay'
 
 type TypeFilter = 'non_transfer' | 'all' | TransactionType
 
@@ -24,32 +25,11 @@ type Props = {
   onDelete: (id: string) => void
   onRepay: (loan: Transaction) => void
   onTopup: (loan: Transaction) => void
+  onSplit: (debit: Transaction) => void
+  onShowLinked: (parentId: string) => void
 }
 
-const typeBadge = (type: TransactionType) => {
-  if (type === 'credit') return { label: 'Credit', color: 'text-green-400 border-green-400/30 bg-green-400/10' }
-  if (type === 'debit') return { label: 'Debit', color: 'text-red-400 border-red-400/30 bg-red-400/10' }
-  if (type === 'lend_out') return { label: 'Lent Out', color: 'text-amber-400 border-amber-400/30 bg-amber-400/10' }
-  if (type === 'lend_in') return { label: 'Lent In', color: 'text-cyan-400 border-cyan-400/30 bg-cyan-400/10' }
-  if (type === 'lend_out_topup') return { label: 'Lend Out (Top-up)', color: 'text-amber-400 border-amber-400/30 bg-amber-400/10' }
-  if (type === 'lend_in_topup') return { label: 'Lend In (Top-up)', color: 'text-cyan-400 border-cyan-400/30 bg-cyan-400/10' }
-  if (type === 'repayment_received') return { label: 'Repayment Received', color: 'text-green-400 border-green-400/30 bg-green-400/10' }
-  if (type === 'repayment_made') return { label: 'Repayment Made', color: 'text-red-400 border-red-400/30 bg-red-400/10' }
-  return { label: 'Transfer', color: 'text-blue-400 border-blue-400/30 bg-blue-400/10' }
-}
-
-const AMOUNT_SIGN: Partial<Record<TransactionType, '-' | '+'>> = {
-  debit: '-',
-  lend_out: '-',
-  lend_out_topup: '-',
-  repayment_made: '-',
-  credit: '+',
-  lend_in: '+',
-  lend_in_topup: '+',
-  repayment_received: '+',
-}
-
-const TransactionList: React.FC<Props> = ({ transactions, accounts, categories, lendOutLoans, lendInLoans, onAdd, onEdit, onDelete, onRepay, onTopup }) => {
+const TransactionList: React.FC<Props> = ({ transactions, accounts, categories, lendOutLoans, lendInLoans, onAdd, onEdit, onDelete, onRepay, onTopup, onSplit, onShowLinked }) => {
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('non_transfer')
   const [accountFilter, setAccountFilter] = useState('all')
   const [categoryFilter, setCategoryFilter] = useState('all')
@@ -131,6 +111,7 @@ const TransactionList: React.FC<Props> = ({ transactions, accounts, categories, 
             <option value="all">All Types</option>
             <option value="debit">Debit Only</option>
             <option value="credit">Credit Only</option>
+            <option value="split_credit">Split Credits</option>
             <option value="lend_out">Lent Out Only</option>
             <option value="lend_in">Lent In Only</option>
             <option value="lend_out_topup">Lend Out Top-ups</option>
@@ -181,10 +162,36 @@ const TransactionList: React.FC<Props> = ({ transactions, accounts, categories, 
               key={t.id}
               className="flex items-center justify-between p-3 bg-[#121212] rounded-lg border border-[#303030] transition"
             >
-              <div className="flex items-center gap-3 min-w-0">
+              <div
+                className={`flex items-center gap-3 min-w-0 ${t.linked_count > 0 || t.related_transaction_id ? 'cursor-pointer' : ''}`}
+                onClick={() => {
+                  const target = t.linked_count > 0 ? t.id : t.related_transaction_id
+                  if (target) onShowLinked(target)
+                }}
+              >
                 {t.type === 'internal_transfer' && <ArrowLeftRight className="w-4 h-4 text-blue-400 flex-shrink-0" />}
                 <div className="min-w-0">
-                  <p className="text-sm font-semibold text-white truncate">{t.description}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-semibold text-white truncate">{t.description}</p>
+                    {t.linked_count > 0 && (
+                      <button
+                        onClick={() => onShowLinked(t.id)}
+                        className="inline-flex items-center gap-1 text-[10px] font-bold text-gray-300 border border-[#303030] rounded-full px-1.5 py-0.5 hover:text-white hover:border-white shrink-0"
+                        title="View linked payments"
+                      >
+                        <Link2 className="w-3 h-3" /> {t.linked_count}
+                      </button>
+                    )}
+                    {t.related_transaction_id && (
+                      <button
+                        onClick={() => onShowLinked(t.related_transaction_id as string)}
+                        className="inline-flex items-center gap-1 text-[10px] text-gray-500 hover:text-white shrink-0"
+                        title="View the transaction this is linked to"
+                      >
+                        <Link2 className="w-3 h-3" /> linked
+                      </button>
+                    )}
+                  </div>
                   <p className="text-xs text-gray-500">
                     {formatDisplayIST(t.transaction_date)} &middot; {accountsById[t.account_id] ?? 'Unknown'}
                     {t.type === 'internal_transfer' && t.to_account_id
@@ -193,7 +200,7 @@ const TransactionList: React.FC<Props> = ({ transactions, accounts, categories, 
                     {t.category_id ? ` · ${categoriesById[t.category_id] ?? ''}` : ''}
                     {t.is_temporary && (t.type === 'lend_out' || t.type === 'lend_in') ? ' · Temporary' : ''}
                     {(t.type === 'lend_out' || t.type === 'lend_in') && outstandingByLoanId[t.id] !== undefined
-                      ? ` · ${outstandingByLoanId[t.id].toFixed(2)} outstanding`
+                      ? ` · ${t.amount.toFixed(2)} original`
                       : ''}
                   </p>
                 </div>
@@ -203,9 +210,27 @@ const TransactionList: React.FC<Props> = ({ transactions, accounts, categories, 
                 <span className={`text-xs font-medium px-2 py-1 rounded-full border ${badge.color}`}>
                   {badge.label}
                 </span>
-                <span className="text-sm font-bold text-white w-24 text-right">
-                  {AMOUNT_SIGN[t.type] ?? ''}{t.amount.toFixed(2)}
-                </span>
+                {(t.type === 'lend_out' || t.type === 'lend_in') && outstandingByLoanId[t.id] !== undefined ? (
+                  <span className="w-28 text-right">
+                    <span className="block text-lg font-bold text-white leading-tight">
+                      {AMOUNT_SIGN[t.type] ?? ''}{outstandingByLoanId[t.id].toFixed(2)}
+                    </span>
+                    <span className="block text-[10px] uppercase tracking-wider text-gray-500">outstanding</span>
+                  </span>
+                ) : (
+                  <span className="text-sm font-bold text-white w-24 text-right">
+                    {AMOUNT_SIGN[t.type] ?? ''}{t.amount.toFixed(2)}
+                  </span>
+                )}
+                {t.type === 'debit' && (
+                  <button
+                    onClick={() => onSplit(t)}
+                    className="text-gray-600 hover:text-emerald-400 p-1 rounded-full transition"
+                    title="Add a split credit (someone paid back their share)"
+                  >
+                    <Split className="w-4 h-4" />
+                  </button>
+                )}
                 {(t.type === 'lend_out' || t.type === 'lend_in') && (
                   <button
                     onClick={() => onTopup(t)}

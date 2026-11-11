@@ -3,6 +3,7 @@
 export type TransactionType =
   | 'debit'
   | 'credit'
+  | 'split_credit' // friends paying back their share of a group expense you paid - linked to that debit
   | 'internal_transfer'
   | 'lend_out'
   | 'lend_in'
@@ -39,8 +40,29 @@ export interface Transaction {
   // from balance, counted only in the Lent (non-temporary) box and Net Worth. Always true for
   // non-lend types.
   is_temporary: boolean | null
-  // Points at the lend_out/lend_in transaction this one is linked to: set for repayment_received/
-  // repayment_made (subtracts from that loan's outstanding) and lend_out_topup/lend_in_topup (adds
-  // to it) - null for everything else.
-  related_loan_id: string | null
+  // Points at the parent transaction this one is linked to: the lend_out/lend_in for
+  // repayment_received/repayment_made (subtracts from that loan's outstanding) and
+  // lend_out_topup/lend_in_topup (adds to it), or the debit for split_credit. Null otherwise.
+  related_transaction_id: string | null
+  // How many transactions link to this one (maintained by a DB trigger). > 0 means this is a
+  // "parent" - a loan with repayments/top-ups, or a debit with split credits.
+  linked_count: number
+  // Optional trip/event group (debit, credit and split_credit only); null when ungrouped.
+  group_id: string | null
+}
+
+export interface TransactionGroup {
+  id: string
+  name: string
+  start_date: string | null
+  end_date: string | null
+  created_at: string
+}
+
+// One row of the transaction_group_stats view.
+export interface TransactionGroupStats {
+  group_id: string
+  txn_count: number
+  spent: number // sum of debits
+  received: number // sum of credits + split credits
 }
