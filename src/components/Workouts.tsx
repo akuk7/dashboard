@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Dumbbell, PlusCircle, List } from 'lucide-react'
+import { Dumbbell, PlusCircle, List, ListPlus } from 'lucide-react'
 import supabase from '../lib/supabase'
 import type { MuscleGroup, Workout, WorkoutCategory, WorkoutSet, WorkoutSession } from '../types/workout'
 import { groupIntoSessions, sessionKey } from '../lib/workouts'
@@ -7,10 +7,13 @@ import WorkoutModel from '../models/WorkoutModel'
 import ViewWorkoutsModel from '../models/ViewWorkoutsModel'
 import LogWorkoutModel from '../models/LogWorkoutModel'
 import type { LogWorkoutSaveResult } from '../models/LogWorkoutModel'
+import LogDayModel from '../models/LogDayModel'
+import type { LogDaySaveResult } from '../models/LogDayModel'
 import WorkoutLogList from './WorkoutLogList'
 
 type ModalState =
   | { mode: 'closed' }
+  | { mode: 'logDay' }
   | { mode: 'log'; initialWorkoutId?: string; initialLogDate?: string }
   | { mode: 'addWorkout' }
   | { mode: 'editWorkout'; workout: Workout }
@@ -75,6 +78,14 @@ const Workouts: React.FC = () => {
     }
   }
 
+  const handleDayLogged = (result: LogDaySaveResult) => {
+    setWorkoutSets((prev) => [...prev.filter((s) => s.log_date !== result.date), ...result.sets])
+    if (result.updatedWorkouts.length > 0) {
+      const byId = new Map(result.updatedWorkouts.map((w) => [w.id, w]))
+      setWorkouts((prev) => prev.map((w) => byId.get(w.id) ?? w))
+    }
+  }
+
   const handleDeleteSession = async (session: WorkoutSession) => {
     if (!window.confirm('Delete this logged session?')) return
     const { error } = await supabase.from('workout_sets').delete().in('id', session.sets.map((s) => s.id))
@@ -105,6 +116,14 @@ const Workouts: React.FC = () => {
             + Workout
           </button>
           <button
+            onClick={() => setModalState({ mode: 'logDay' })}
+            className="p-2 rounded-lg bg-white text-black"
+            title="Log full day"
+            aria-label="Log full day"
+          >
+            <ListPlus size={20} />
+          </button>
+          <button
             onClick={() => setModalState({ mode: 'log' })}
             className="inline-flex items-center gap-2 px-4 py-2 bg-white text-black rounded-lg font-medium"
           >
@@ -132,6 +151,17 @@ const Workouts: React.FC = () => {
           initialLogDate={modalState.initialLogDate}
           onClose={() => setModalState({ mode: 'closed' })}
           onSaved={handleSetsLogged}
+        />
+      )}
+
+      {modalState.mode === 'logDay' && (
+        <LogDayModel
+          workouts={workouts}
+          categories={categories}
+          muscleGroups={muscleGroups}
+          sessions={sessions}
+          onClose={() => setModalState({ mode: 'closed' })}
+          onSaved={handleDayLogged}
         />
       )}
 

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { PlusCircle, List, SlidersHorizontal, Edit, Trash2, Star } from 'lucide-react'
+import { PlusCircle, List, ListPlus, SlidersHorizontal, Edit, Trash2, Star } from 'lucide-react'
 import supabase from '../../lib/supabase'
 import type { MuscleGroup, Workout, WorkoutCategory, WorkoutSet, WorkoutSession } from '../../types/workout'
 import { groupIntoSessions, sessionKey } from '../../lib/workouts'
@@ -7,11 +7,14 @@ import WorkoutModel from '../../models/WorkoutModel'
 import ViewWorkoutsModel from '../../models/ViewWorkoutsModel'
 import LogWorkoutModel from '../../models/LogWorkoutModel'
 import type { LogWorkoutSaveResult } from '../../models/LogWorkoutModel'
+import LogDayModel from '../../models/LogDayModel'
+import type { LogDaySaveResult } from '../../models/LogDayModel'
 import MobileHeader from '../MobileHeader'
 import { formatDisplayIST, startOfMonthIST } from '../../lib/dateUtils'
 
 type ModalState =
   | { mode: 'closed' }
+  | { mode: 'logDay' }
   | { mode: 'log'; initialWorkoutId?: string; initialLogDate?: string }
   | { mode: 'addWorkout' }
   | { mode: 'editWorkout'; workout: Workout }
@@ -163,6 +166,14 @@ const MobileWorkouts: React.FC = () => {
     }
   }
 
+  const handleDayLogged = (result: LogDaySaveResult) => {
+    setWorkoutSets((prev) => [...prev.filter((s) => s.log_date !== result.date), ...result.sets])
+    if (result.updatedWorkouts.length > 0) {
+      const byId = new Map(result.updatedWorkouts.map((w) => [w.id, w]))
+      setWorkouts((prev) => prev.map((w) => byId.get(w.id) ?? w))
+    }
+  }
+
   const handleDeleteSession = async (session: WorkoutSession) => {
     if (!window.confirm('Delete this logged session?')) return
     const { error } = await supabase.from('workout_sets').delete().in('id', session.sets.map((s) => s.id))
@@ -289,11 +300,32 @@ const MobileWorkouts: React.FC = () => {
       </div>
 
       <button
+        onClick={() => setModalState({ mode: 'logDay' })}
+        className="fixed bottom-36 right-4 w-11 h-11 rounded-full bg-white text-black flex items-center justify-center shadow-xl"
+        title="Log full day"
+        aria-label="Log full day"
+      >
+        <ListPlus className="w-5 h-5" />
+      </button>
+      <button
         onClick={() => setModalState({ mode: 'log' })}
         className="fixed bottom-20 right-4 w-14 h-14 rounded-full bg-white text-black flex items-center justify-center shadow-xl"
+        title="Log workout"
+        aria-label="Log workout"
       >
         <PlusCircle className="w-6 h-6" />
       </button>
+
+      {modalState.mode === 'logDay' && (
+        <LogDayModel
+          workouts={workouts}
+          categories={categories}
+          muscleGroups={muscleGroups}
+          sessions={sessions}
+          onClose={() => setModalState({ mode: 'closed' })}
+          onSaved={handleDayLogged}
+        />
+      )}
 
       {modalState.mode === 'log' && (
         <LogWorkoutModel
