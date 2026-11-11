@@ -166,8 +166,12 @@ const AddTransaction: React.FC<Props> = ({ transaction, prefill, accounts, categ
       transaction_date: transactionDate,
       is_temporary: isLend ? !isBigLoan : isTopup ? (selectedLinkedLoan?.transaction.is_temporary ?? true) : true,
       related_transaction_id: (isRepayment || isTopup || isSplit) ? relatedLoanId : null,
-      group_id: isSplit ? (selectedDebit?.group_id ?? null) : canHaveGroup ? (groupId || null) : null,
     }
+
+    // group_id is only sent when it matters (a group is set, or one is being cleared), so saving
+    // an ordinary transaction or a split never touches the groups feature or its column.
+    const nextGroupId = isSplit ? (selectedDebit?.group_id ?? null) : canHaveGroup ? (groupId || null) : null
+    if (nextGroupId || transaction?.group_id) Object.assign(payload, { group_id: nextGroupId })
 
     const { data, error: saveError } = isEditing
       ? await supabase.from('transactions').update(payload).match({ id: transaction!.id }).select('*').single()
